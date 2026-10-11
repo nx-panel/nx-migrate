@@ -35,8 +35,8 @@ Marzneshin · Remnawave
 The full guide covers each panel, what comes across and what to check
 afterwards. It is available in the same languages as the wizard:
 
-[English](docs/guide.en.md) · [فارسی](docs/guide.fa.md) · [中文](docs/guide.zh.md) ·
-[Русский](docs/guide.ru.md) · [Tiếng Việt](docs/guide.vi.md)
+[English](https://docs.nexora-panel.org/start/migrate) · [فارسی](https://docs.nexora-panel.org/fa/start/migrate) · [中文](https://docs.nexora-panel.org/zh/start/migrate) ·
+[Русский](https://docs.nexora-panel.org/ru/start/migrate) · [Tiếng Việt](docs/guide.vi.md)
 
 ## Contributing and licence
 
