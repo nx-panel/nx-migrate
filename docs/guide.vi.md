@@ -1,9 +1,9 @@
-# Hướng dẫn nexora-migrate
+# Hướng dẫn nx-migrate
 
 [English](guide.en.md) · [فارسی](guide.fa.md) · [中文](guide.zh.md) · [Русский](guide.ru.md) · [Tiếng Việt](guide.vi.md)
 
-nexora-migrate sao chép người dùng và cấu hình của một bảng điều khiển VPN khác
-sang Nexora: thông tin đăng nhập, dung lượng còn lại, ngày hết hạn, inbound,
+nx-migrate sao chép người dùng và cấu hình của một bảng điều khiển VPN khác
+sang NX: thông tin đăng nhập, dung lượng còn lại, ngày hết hạn, inbound,
 outbound, định tuyến, DNS và quản trị viên. Khi định dạng liên kết của bảng cũ cho
 phép, khách hàng vẫn giữ được liên kết đăng ký hiện có.
 
@@ -11,35 +11,35 @@ phép, khách hàng vẫn giữ được liên kết đăng ký hiện có.
 
 | Hệ điều hành | Tệp |
 | --- | --- |
-| Windows (Intel/AMD) | [nexora-migrate-windows-amd64.zip](https://github.com/nexora-vpn/nexora-migrate/releases/latest/download/nexora-migrate-windows-amd64.zip) |
-| Windows (ARM) | [nexora-migrate-windows-arm64.zip](https://github.com/nexora-vpn/nexora-migrate/releases/latest/download/nexora-migrate-windows-arm64.zip) |
-| Linux (Intel/AMD) | [nexora-migrate-linux-amd64.tar.gz](https://github.com/nexora-vpn/nexora-migrate/releases/latest/download/nexora-migrate-linux-amd64.tar.gz) |
-| Linux (ARM) | [nexora-migrate-linux-arm64.tar.gz](https://github.com/nexora-vpn/nexora-migrate/releases/latest/download/nexora-migrate-linux-arm64.tar.gz) |
-| macOS (Apple silicon) | [nexora-migrate-darwin-arm64.tar.gz](https://github.com/nexora-vpn/nexora-migrate/releases/latest/download/nexora-migrate-darwin-arm64.tar.gz) |
+| Windows (Intel/AMD) | [nx-migrate-windows-amd64.zip](https://github.com/nx-panel/nx-migrate/releases/latest/download/nx-migrate-windows-amd64.zip) |
+| Windows (ARM) | [nx-migrate-windows-arm64.zip](https://github.com/nx-panel/nx-migrate/releases/latest/download/nx-migrate-windows-arm64.zip) |
+| Linux (Intel/AMD) | [nx-migrate-linux-amd64.tar.gz](https://github.com/nx-panel/nx-migrate/releases/latest/download/nx-migrate-linux-amd64.tar.gz) |
+| Linux (ARM) | [nx-migrate-linux-arm64.tar.gz](https://github.com/nx-panel/nx-migrate/releases/latest/download/nx-migrate-linux-arm64.tar.gz) |
+| macOS (Apple silicon) | [nx-migrate-darwin-arm64.tar.gz](https://github.com/nx-panel/nx-migrate/releases/latest/download/nx-migrate-darwin-arm64.tar.gz) |
 
 Các liên kết này luôn trỏ tới phiên bản mới nhất. Để kiểm tra tệp đã tải, hãy so
-sánh với [SHA256SUMS](https://github.com/nexora-vpn/nexora-migrate/releases/latest/download/SHA256SUMS).
+sánh với [SHA256SUMS](https://github.com/nx-panel/nx-migrate/releases/latest/download/SHA256SUMS).
 
 ## 2. Chạy
 
-**Windows.** Giải nén rồi nhấp đúp vào `nexora-migrate.exe`. Nếu SmartScreen chặn,
+**Windows.** Giải nén rồi nhấp đúp vào `nx-migrate.exe`. Nếu SmartScreen chặn,
 chọn *More info → Run anyway*.
 
 **Linux** (ví dụ trên máy chủ của bảng cũ):
 
 ```sh
-curl -LO https://github.com/nexora-vpn/nexora-migrate/releases/latest/download/nexora-migrate-linux-amd64.tar.gz
-tar -xzf nexora-migrate-linux-amd64.tar.gz
-./nexora-migrate
+curl -LO https://github.com/nx-panel/nx-migrate/releases/latest/download/nx-migrate-linux-amd64.tar.gz
+tar -xzf nx-migrate-linux-amd64.tar.gz
+./nx-migrate
 ```
 
 **macOS.** Giải nén tệp. macOS chặn các chương trình tải từ internet, vì vậy hãy
 cho phép chương trình này một lần rồi chạy:
 
 ```sh
-tar -xzf nexora-migrate-darwin-arm64.tar.gz
-xattr -d com.apple.quarantine nexora-migrate
-./nexora-migrate
+tar -xzf nx-migrate-darwin-arm64.tar.gz
+xattr -d com.apple.quarantine nx-migrate
+./nx-migrate
 ```
 
 Chương trình in ra một liên kết như sau. Hãy mở nó trong trình duyệt:
@@ -69,7 +69,7 @@ kết, `-version` hiển thị phiên bản.
    chọn tất cả, một nhóm hoặc từng dòng. Dòng màu vàng được chuyển kèm một thay
    đổi, và ghi chú cho biết đã đổi gì. Dòng màu đỏ không thể chuyển, nhưng vẫn được
    liệt kê để bạn biết.
-3. **Kết nối Nexora.** Nhập địa chỉ Nexora và đăng nhập bằng tên người dùng và mật
+3. **Kết nối NX.** Nhập địa chỉ NX và đăng nhập bằng tên người dùng và mật
    khẩu hoặc token API. Nếu tài khoản bật đăng nhập hai bước, hãy nhập thêm mã hiện
    tại từ ứng dụng xác thực.
 4. **Xem trước.** Trang này cho biết chính xác những gì sẽ được tạo, dung lượng còn
@@ -119,19 +119,19 @@ khóa API.
 
 ## 5. Trước khi bắt đầu chuyển
 
-**Liên kết đăng ký.** Nexora cũng trả lời `/sub/{token}` bằng token cũ. Với
+**Liên kết đăng ký.** NX cũng trả lời `/sub/{token}` bằng token cũ. Với
 **s-ui, 3x-ui, x-ui, Marzban và PasarGuard**, liên kết hiện có tiếp tục hoạt động
-khi tên miền cũ trỏ về Nexora, và khách hàng không cần làm gì. **Marzneshin,
-Hiddify và Remnawave** dùng định dạng liên kết mà Nexora không phục vụ, nên người
+khi tên miền cũ trỏ về NX, và khách hàng không cần làm gì. **Marzneshin,
+Hiddify và Remnawave** dùng định dạng liên kết mà NX không phục vụ, nên người
 dùng của chúng sẽ nhận liên kết mới. Trình hướng dẫn nêu rõ điều này cho từng người
 dùng.
 
-**Mỗi người dùng một bộ thông tin đăng nhập.** Nexora lưu một UUID và một mật khẩu
+**Mỗi người dùng một bộ thông tin đăng nhập.** NX lưu một UUID và một mật khẩu
 cho mỗi người dùng, còn một số bảng lưu riêng cho từng giao thức. Khi chúng khác
 nhau, UUID lấy từ VLESS/VMess, mật khẩu lấy từ Trojan/Shadowsocks, và dòng đó ghi
 tên mọi giao thức có khóa bị bỏ.
 
-**Các node tạm dừng trong khi chuyển.** Nexora đẩy mỗi người dùng mới tới các node
+**Các node tạm dừng trong khi chuyển.** NX đẩy mỗi người dùng mới tới các node
 của nó. Để tránh hàng nghìn lần đẩy, trình hướng dẫn tắt các node trong lúc chuyển
 và đồng bộ mỗi node một lần ở cuối. Các node được bật lại kể cả khi quá trình
 chuyển thất bại hoặc bạn dừng nó. Node đã bị giới hạn dung lượng tắt sẽ được giữ
@@ -141,25 +141,25 @@ nguyên.
 mọi thiết lập giống nhau. Khóa VLESS Encryption và thiết lập XHTTP được chuyển sang,
 nên các client hiện có vẫn khớp với máy chủ. Thiết lập không có tương đương
 (fallback, mux, QUIC, làm rối header TCP) bị bỏ kèm ghi chú trên dòng. Khi dùng VLESS
-Encryption, Nexora không phục vụ flow XTLS Vision. Inbound REALITY không có khóa
+Encryption, NX không phục vụ flow XTLS Vision. Inbound REALITY không có khóa
 riêng sẽ nhận khóa mới, nên client của nó cần liên kết mới. Hãy kiểm tra từng
 inbound trước khi đặt nó lên node.
 
-**Outbound `direct`.** Nexora tự thêm một outbound `direct` đơn giản vào mọi node.
+**Outbound `direct`.** NX tự thêm một outbound `direct` đơn giản vào mọi node.
 Vì vậy outbound `direct` đơn giản từ bảng cũ không được tạo lại, và các quy tắc trỏ
-tới nó sẽ dùng outbound của Nexora.
+tới nó sẽ dùng outbound của NX.
 
 **WireGuard.** Các peer WireGuard được chuyển nguyên trạng lên endpoint của chúng và
-không trở thành người dùng Nexora.
+không trở thành người dùng NX.
 
 **Mật khẩu quản trị viên không thể chuyển.** Quản trị viên được nhập sẽ nhận một mật
 khẩu được tạo, chỉ hiển thị một lần ở trang cuối và không được lưu ở đâu cả, vì vậy
 hãy ghi lại. Nếu bạn đăng nhập bằng xác thực hai bước và có chọn quản trị viên,
-trang xem trước sẽ yêu cầu một mã mới, vì Nexora xác nhận việc tạo quản trị viên
+trang xem trước sẽ yêu cầu một mã mới, vì NX xác nhận việc tạo quản trị viên
 bằng mã.
 
 **Sau khi chuyển.** Inbound, outbound và quy tắc đã nhập được gom vào một mẫu
-Nexora. Hãy gán mẫu đó cho các node trong Nexora, rồi kiểm tra rằng node kết nối
+NX. Hãy gán mẫu đó cho các node trong NX, rồi kiểm tra rằng node kết nối
 được và liên kết hoạt động.
 
 ## 6. Bảo mật

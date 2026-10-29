@@ -12,7 +12,7 @@ export CGO_ENABLED = 0
 
 .PHONY: build
 build:
-	go build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o nexora-migrate .
+	go build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o nx-migrate .
 
 .PHONY: run
 run:
@@ -36,7 +36,7 @@ release:
 	@for p in $(PLATFORMS); do \
 		os=$${p%%/*}; arch=$${p##*/}; ext=""; \
 		[ "$$os" = "windows" ] && ext=".exe"; \
-		out="dist/nexora-migrate-$$os-$$arch$$ext"; \
+		out="dist/nx-migrate-$$os-$$arch$$ext"; \
 		GOOS=$$os GOARCH=$$arch go build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $$out . || exit 1; \
 		printf "  %-16s %s\n" "$$p" "$$(du -h $$out | cut -f1)"; \
 	done
@@ -50,13 +50,13 @@ package:
 	@for p in $(PLATFORMS); do \
 		os=$${p%%/*}; arch=$${p##*/}; ext=""; \
 		[ "$$os" = "windows" ] && ext=".exe"; \
-		bin="dist/stage/nexora-migrate$$ext"; \
+		bin="dist/stage/nx-migrate$$ext"; \
 		GOOS=$$os GOARCH=$$arch go build $(GOFLAGS) -ldflags "$(LDFLAGS)" -o $$bin . || exit 1; \
-		name="nexora-migrate-$$os-$$arch"; \
+		name="nx-migrate-$$os-$$arch"; \
 		if [ "$$os" = "windows" ]; then \
-			(cd dist/stage && zip -q "../$$name.zip" "nexora-migrate$$ext"); \
+			(cd dist/stage && zip -q "../$$name.zip" "nx-migrate$$ext"); \
 		else \
-			tar -czf "dist/$$name.tar.gz" -C dist/stage "nexora-migrate$$ext"; \
+			tar -czf "dist/$$name.tar.gz" -C dist/stage "nx-migrate$$ext"; \
 		fi; \
 		rm -f "$$bin"; \
 		printf "  %-16s %s\n" "$$p" "$$name"; \
@@ -67,4 +67,4 @@ package:
 
 .PHONY: clean
 clean:
-	rm -rf dist nexora-migrate nexora-migrate.exe
+	rm -rf dist nx-migrate nx-migrate.exe

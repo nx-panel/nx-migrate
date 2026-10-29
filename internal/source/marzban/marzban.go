@@ -22,11 +22,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
-	"github.com/nexora-vpn/nexora-migrate/internal/convert"
-	"github.com/nexora-vpn/nexora-migrate/internal/httpx"
-	"github.com/nexora-vpn/nexora-migrate/internal/normalize"
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/convert"
+	"github.com/nx-panel/nx-migrate/internal/httpx"
+	"github.com/nx-panel/nx-migrate/internal/normalize"
+	"github.com/nx-panel/nx-migrate/internal/source"
 )
 
 func init() {
@@ -113,7 +113,7 @@ func readVersion(ctx context.Context, c *httpx.Client, b *bundle.Bundle) {
 	}
 }
 
-// readCores converts the Xray configuration the panel runs into Nexora
+// readCores converts the Xray configuration the panel runs into NX
 // templates and returns their item ids. Marzban has one, at /api/core/config.
 // PasarGuard keeps any number of named cores behind /api/cores and has no
 // /api/core/config at all; each of its Xray cores becomes a template of its own.
@@ -266,7 +266,7 @@ func convertInbound(b *bundle.Bundle, tags *normalize.Namer, i int, o convert.Ob
 	if res.Changed {
 		it.AddNote("%s", res.Note)
 	}
-	it.AddNote("Marzban advertises this inbound through its own Hosts list (addresses, SNI, fragment); Nexora advertises the node's address instead, so check the generated links")
+	it.AddNote("Marzban advertises this inbound through its own Hosts list (addresses, SNI, fragment); NX advertises the node's address instead, so check the generated links")
 	b.Add(it)
 	return it.ID
 }
@@ -279,7 +279,7 @@ func convertOutbound(b *bundle.Bundle, tags *normalize.Namer, i int, o convert.O
 	typ, cfg, notes, ok := convert.Outbound(o)
 	if ok && len(notes) == 0 && convert.IsBuiltinDirect(tag, typ, cfg) && !convert.XrayOutboundExtras(o) {
 		rc.Renamed[tag] = convert.BuiltinDirect
-		b.Note("the old panel's plain %q outbound is the one Nexora already puts on every node, so it was not created again; rules that named it use Nexora's", tag)
+		b.Note("the old panel's plain %q outbound is the one NX already puts on every node, so it was not created again; rules that named it use NX's", tag)
 		return ""
 	}
 	res := tags.Tag(tag, fmt.Sprintf("outbound-%d", i+1))
@@ -356,7 +356,7 @@ func readAdmins(ctx context.Context, c *httpx.Client, b *bundle.Bundle) map[stri
 			continue
 		}
 		pw := convert.RandomPassword()
-		// A Marzban sudo becomes a Nexora admin, not a sudo: Nexora's sudo is
+		// A Marzban sudo becomes an NX admin, not a sudo: NX's sudo is
 		// the install's own main account and is never created by an import.
 		// Everyone else becomes a reseller, which is what they were.
 		role := "resale"
@@ -373,7 +373,7 @@ func readAdmins(ctx context.Context, c *httpx.Client, b *bundle.Bundle) map[stri
 		it.Set("role", role)
 		it.Set("new password", pw)
 		if a.sudo() {
-			it.AddNote("this was a sudo admin in %s; it arrives as a Nexora admin, because Nexora's sudo account belongs to the install and is never created by an import", b.Source.Panel)
+			it.AddNote("this was a sudo admin in %s; it arrives as an NX admin, because NX's sudo account belongs to the install and is never created by an import", b.Source.Panel)
 		}
 		it.AddNote("password hashes cannot move between panels: this admin arrives with the generated password shown here — write it down, it is not stored")
 		b.Add(it)
@@ -447,8 +447,8 @@ func userItem(b *bundle.Bundle, u marzbanUser, names *normalize.Namer, admins ma
 		SingleCounter: true,
 		Down:          u.UsedTraffic,
 	}
-	// Marzban's five statuses collapse to Nexora's enable flag plus the limits
-	// that produced them: limited and expired are states Nexora derives from
+	// Marzban's five statuses collapse to NX's enable flag plus the limits
+	// that produced them: limited and expired are states NX derives from
 	// volume and expiry rather than stores, so only disabled turns the account
 	// off.
 	switch u.Status {
@@ -462,7 +462,7 @@ func userItem(b *bundle.Bundle, u marzbanUser, names *normalize.Namer, admins ma
 	}
 	c.Expiry = int64(u.Expire)
 	if u.Status == "on_hold" && u.OnHoldDuration != nil && *u.OnHoldDuration > 0 {
-		// Not started yet: Nexora spells this as Duration with no ActivatedAt.
+		// Not started yet: NX spells this as Duration with no ActivatedAt.
 		c.Duration, c.Expiry = *u.OnHoldDuration, 0
 	}
 	if u.OnlineAt != nil {
@@ -500,7 +500,7 @@ func userItem(b *bundle.Bundle, u marzbanUser, names *normalize.Namer, admins ma
 	}
 	switch u.Status {
 	case "limited":
-		it.AddNote("this account was over its quota in %s; Nexora works that out from the volume and the counters, so it arrives enabled and still over", b.Source.Panel)
+		it.AddNote("this account was over its quota in %s; NX works that out from the volume and the counters, so it arrives enabled and still over", b.Source.Panel)
 	case "expired":
 		it.AddNote("this account was past its expiry in %s; it arrives enabled with the same expiry date, so it is still expired", b.Source.Panel)
 	}
@@ -508,7 +508,7 @@ func userItem(b *bundle.Bundle, u marzbanUser, names *normalize.Namer, admins ma
 }
 
 // credentials collapses Marzban's per-protocol proxies into the single set
-// Nexora keeps, naming every protocol whose secret is discarded.
+// NX keeps, naming every protocol whose secret is discarded.
 func credentials(proxies map[string]map[string]any) (uuid, password, flow, method string, conflicts []string) {
 	get := func(proto, key string) string {
 		if p, ok := proxies[proto]; ok {
@@ -551,10 +551,10 @@ func credentials(proxies map[string]map[string]any) (uuid, password, flow, metho
 	return
 }
 
-// subToken pulls the token out of a finished subscription URL. Nexora resolves
+// subToken pulls the token out of a finished subscription URL. NX resolves
 // /sub/{token} against sub_id as well as its own sub_token, so the old token
 // stored here keeps a customer's existing link working once the hostname
-// points at Nexora.
+// points at NX.
 func subToken(raw string) (token, full string) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -641,7 +641,7 @@ func ruleSetItems(b *bundle.Bundle, tags []string) []string {
 
 // flexTime reads an expiry as either spelling it has had: Marzban's unix
 // seconds, or the ISO datetime PasarGuard answers with. Null and zero are
-// both "never", which is 0 here as in Nexora.
+// both "never", which is 0 here as in NX.
 type flexTime int64
 
 func (f *flexTime) UnmarshalJSON(b []byte) error {

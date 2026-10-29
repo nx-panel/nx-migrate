@@ -102,7 +102,7 @@ func TestRejectsNonsense(t *testing.T) {
 
 // The DNS server shape is the one place a wrong guess reached a real panel
 // during development: sing-box 1.14 removed the legacy `{"address": …}` server
-// and Nexora rejects a template carrying one. These pin the typed form.
+// and NX rejects a template carrying one. These pin the typed form.
 func TestDNSServersAreTyped(t *testing.T) {
 	out, _ := DNS(Obj{"servers": []any{
 		"8.8.8.8",
@@ -151,7 +151,7 @@ func TestUnknownDNSSchemeIsReportedNotEmitted(t *testing.T) {
 	}
 }
 
-// The `dns` outbound went away in sing-box 1.13 and Nexora refuses a config
+// The `dns` outbound went away in sing-box 1.13 and NX refuses a config
 // carrying one, so it must never be produced.
 func TestDNSOutboundIsNotProduced(t *testing.T) {
 	_, _, notes, ok := Outbound(Obj{"tag": "dns-out", "protocol": "dns"})

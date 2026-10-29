@@ -4,7 +4,7 @@
 // for. Easy, because one account has exactly one uuid and every protocol uses
 // it — there is no per-protocol credential to collapse. Hard, because its
 // subscription URL is `/{proxy_path}/{uuid}/sub/`: three segments, one of them
-// an install-wide secret, so no amount of care on Nexora's side reproduces it.
+// an install-wide secret, so no amount of care on NX's side reproduces it.
 // Those customers get new links, and the review says so per account.
 package hiddify
 
@@ -15,11 +15,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
-	"github.com/nexora-vpn/nexora-migrate/internal/convert"
-	"github.com/nexora-vpn/nexora-migrate/internal/httpx"
-	"github.com/nexora-vpn/nexora-migrate/internal/normalize"
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/convert"
+	"github.com/nx-panel/nx-migrate/internal/httpx"
+	"github.com/nx-panel/nx-migrate/internal/normalize"
+	"github.com/nx-panel/nx-migrate/internal/source"
 )
 
 func init() {
@@ -74,8 +74,8 @@ func (reader) Read(ctx context.Context, opt source.Options) (*bundle.Bundle, err
 	base := "/" + proxyPath + "/api/v2/admin"
 
 	b := &bundle.Bundle{Source: bundle.SourceInfo{Panel: "Hiddify Manager", Origin: c.Base}}
-	b.Note("Hiddify's subscription link is /<secret path>/<uuid>/sub/ — three segments, one of them an install-wide secret. Nexora resolves a single-segment token, so every account here gets a new link and customers have to be re-sent it.")
-	b.Note("Hiddify manages its own inbounds, domains and routing from its config pages rather than storing a sing-box document, so nothing in those pages is offered here — build the inbounds in Nexora first.")
+	b.Note("Hiddify's subscription link is /<secret path>/<uuid>/sub/ — three segments, one of them an install-wide secret. NX resolves a single-segment token, so every account here gets a new link and customers have to be re-sent it.")
+	b.Note("Hiddify manages its own inbounds, domains and routing from its config pages rather than storing a sing-box document, so nothing in those pages is offered here — build the inbounds in NX first.")
 
 	admins := readAdmins(ctx, c, base, b)
 	if err := readUsers(ctx, c, base, b, admins); err != nil {
@@ -97,7 +97,7 @@ func readAdmins(ctx context.Context, c *httpx.Client, base string, b *bundle.Bun
 			continue
 		}
 		res := namer.Name(a.Name, "admin-"+shortUUID(a.UUID))
-		// Hiddify's three modes map onto Nexora's two importable roles: an
+		// Hiddify's three modes map onto NX's two importable roles: an
 		// agent sells, so it is a reseller; the rest operate the panel.
 		role := "admin"
 		if strings.EqualFold(a.Mode, "agent") {
@@ -162,7 +162,7 @@ func userItem(u hiddifyUser, names *normalize.Namer, admins map[string]string) b
 	}
 
 	// package_days with no start_date is Hiddify's start-on-first-use, which is
-	// exactly Nexora's Duration. With a start_date the clock has begun, so the
+	// exactly NX's Duration. With a start_date the clock has begun, so the
 	// expiry is a real date and the start is kept.
 	days := 0
 	if u.PackageDays != nil {

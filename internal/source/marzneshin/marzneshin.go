@@ -22,11 +22,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
-	"github.com/nexora-vpn/nexora-migrate/internal/convert"
-	"github.com/nexora-vpn/nexora-migrate/internal/httpx"
-	"github.com/nexora-vpn/nexora-migrate/internal/normalize"
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/convert"
+	"github.com/nx-panel/nx-migrate/internal/httpx"
+	"github.com/nx-panel/nx-migrate/internal/normalize"
+	"github.com/nx-panel/nx-migrate/internal/source"
 )
 
 func init() {
@@ -89,7 +89,7 @@ func (reader) Read(ctx context.Context, opt source.Options) (*bundle.Bundle, err
 	}
 
 	b := &bundle.Bundle{Source: bundle.SourceInfo{Panel: "Marzneshin", Origin: c.Base}}
-	b.Note("Marzneshin's subscription link is /sub/<username>/<key> — two path segments, where Nexora resolves one. These accounts get new links; their credentials and quota are kept.")
+	b.Note("Marzneshin's subscription link is /sub/<username>/<key> — two path segments, where NX resolves one. These accounts get new links; their credentials and quota are kept.")
 
 	admins := readAdmins(ctx, c, b)
 	readUsers(ctx, c, b, admins)
@@ -269,7 +269,7 @@ func userItem(b *bundle.Bundle, u user, names *normalize.Namer, admins map[strin
 	if u.DataLimit != nil {
 		c.Volume = *u.DataLimit
 	}
-	// Marzneshin spells unlimited as -1 for the address cap; Nexora spells it 0.
+	// Marzneshin spells unlimited as -1 for the address cap; NX spells it 0.
 	if u.IPLimit > 0 {
 		c.IPLimit = u.IPLimit
 	}

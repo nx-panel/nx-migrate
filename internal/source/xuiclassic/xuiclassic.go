@@ -15,13 +15,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
-	"github.com/nexora-vpn/nexora-migrate/internal/convert"
-	"github.com/nexora-vpn/nexora-migrate/internal/normalize"
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
-	"github.com/nexora-vpn/nexora-migrate/internal/source/dbfetch"
-	"github.com/nexora-vpn/nexora-migrate/internal/source/xraysql"
-	"github.com/nexora-vpn/nexora-migrate/internal/sqlitex"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/convert"
+	"github.com/nx-panel/nx-migrate/internal/normalize"
+	"github.com/nx-panel/nx-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/source/dbfetch"
+	"github.com/nx-panel/nx-migrate/internal/source/xraysql"
+	"github.com/nx-panel/nx-migrate/internal/sqlitex"
 )
 
 // WireGuardClientsArePeers: this line stores WireGuard peers under
@@ -118,7 +118,7 @@ func readConfiguration(b *bundle.Bundle, db *sqlitex.DB, settings map[string]str
 	xraysql.NoteOn(b, id, append(routeNotes, dnsNotes...))
 	if objOf(tpl, "policy") != nil {
 		xraysql.NoteOn(b, id, []string{
-			"the Xray `policy` block (per-level connection and speed limits) was dropped — Nexora puts a real speed cap and address cap on the account itself, so set them there instead",
+			"the Xray `policy` block (per-level connection and speed limits) was dropped — NX puts a real speed cap and address cap on the account itself, so set them there instead",
 		})
 	}
 	return id
@@ -144,7 +144,7 @@ func readOutbounds(b *bundle.Bundle, db *sqlitex.DB, tags *normalize.Namer, rc c
 				}
 				// The two columns this line keeps beside the JSON, on the
 				// object too, so a direct outbound that uses them is not
-				// folded into Nexora's own.
+				// folded into NX's own.
 				if v := strings.TrimSpace(r.Str("send_through")); v != "" {
 					o["sendThrough"] = v
 				}

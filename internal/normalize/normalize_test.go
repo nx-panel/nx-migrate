@@ -32,7 +32,7 @@ func TestSpacesAndUnsafeCharacters(t *testing.T) {
 	}
 }
 
-// Nexora's name column is unique, so two rows that clean to the same thing must
+// NX's name column is unique, so two rows that clean to the same thing must
 // not collide — the second would be refused and the operator would lose an
 // account without being told which.
 func TestCollisionsGetASuffix(t *testing.T) {

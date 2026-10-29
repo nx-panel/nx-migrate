@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/source"
 
 	_ "modernc.org/sqlite"
 )
@@ -110,7 +110,7 @@ func TestReadsEveryKind(t *testing.T) {
 	counts := b.Counts()
 	for kind, want := range map[bundle.Kind]int{
 		bundle.KindInbound: 1,
-		// s-ui's plain "direct" is the outbound Nexora puts on every node
+		// s-ui's plain "direct" is the outbound NX puts on every node
 		// itself; creating it again makes the node refuse its config.
 		bundle.KindOutbound: 0,
 		bundle.KindTemplate: 1,
@@ -127,7 +127,7 @@ func TestReadsEveryKind(t *testing.T) {
 }
 
 // The TLS profile an inbound points at by foreign key has to end up inside the
-// inbound's config, because Nexora has no separate TLS table.
+// inbound's config, because NX has no separate TLS table.
 func TestInboundAbsorbsTLSAndClientConfig(t *testing.T) {
 	b := read(t)
 	it := find(t, b, "inbound:1")
@@ -145,7 +145,7 @@ func TestInboundAbsorbsTLSAndClientConfig(t *testing.T) {
 		t.Errorf("config type/tag = %v/%v, want vless/%s", cfg["type"], cfg["tag"], it.Name)
 	}
 	if _, ok := p["clientConfig"]; !ok {
-		t.Error("out_json should become clientConfig, which is Nexora's name for the same thing")
+		t.Error("out_json should become clientConfig, which is NX's name for the same thing")
 	}
 	// "vless in" has a space, which a sing-box tag must not.
 	if it.Name == it.SourceName {
@@ -153,7 +153,7 @@ func TestInboundAbsorbsTLSAndClientConfig(t *testing.T) {
 	}
 }
 
-// Nexora keeps one credential set per user. s-ui keeps one per protocol, so the
+// NX keeps one credential set per user. s-ui keeps one per protocol, so the
 // reader must pick, and must say which protocol it dropped — silently changing
 // a paying customer's Shadowsocks password is the failure this guards.
 func TestCredentialCollapseIsReported(t *testing.T) {
@@ -244,7 +244,7 @@ func TestTemplateCarriesRoutingAndReferencesInbounds(t *testing.T) {
 	}
 }
 
-// An s-ui service has no Nexora equivalent. It must still be listed — an
+// An s-ui service has no NX equivalent. It must still be listed — an
 // operator who runs one needs to know it did not come — and must not be
 // selectable.
 func TestUnsupportedServiceIsBlockedNotHidden(t *testing.T) {

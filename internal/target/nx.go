@@ -1,4 +1,4 @@
-// Package target is the Nexora side: the client that logs in, checks what the
+// Package target is the NX side: the client that logs in, checks what the
 // panel can accept, and creates the items an operator picked.
 //
 // Everything is written through the panel's public REST API and nothing else.
@@ -18,10 +18,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/httpx"
+	"github.com/nx-panel/nx-migrate/internal/httpx"
 )
 
-// Options is how to reach the Nexora panel.
+// Options is how to reach the NX panel.
 type Options struct {
 	BaseURL  string `json:"baseUrl"`
 	Username string `json:"username"`
@@ -33,7 +33,7 @@ type Options struct {
 	Insecure bool   `json:"insecure"`
 }
 
-// Client is a connected Nexora panel.
+// Client is a connected NX panel.
 type Client struct {
 	http *httpx.Client
 	Me   Identity
@@ -73,7 +73,7 @@ func Connect(ctx context.Context, opt Options) (*Client, error) {
 			if httpx.Status(err) == http.StatusUnauthorized {
 				return nil, fmt.Errorf("the panel refused that username and password")
 			}
-			return nil, fmt.Errorf("could not log in to Nexora: %w", err)
+			return nil, fmt.Errorf("could not log in to NX: %w", err)
 		}
 		// An account with two-factor sign-in answers the password with a
 		// short-lived pending token, and the session comes from the second step.
@@ -265,7 +265,7 @@ func (c *Client) Create(ctx context.Context, path string, payload any) (uint, er
 // SetNodeEnabled turns one node on or off.
 //
 // This is what makes an import of thousands of accounts survivable without any
-// change to the panel. Nexora has no bulk create: every POST /api/users ends in
+// change to the panel. NX has no bulk create: every POST /api/users ends in
 // a reconcile of every node the account lands on, so twenty thousand accounts
 // across three nodes would be sixty thousand full user-list pushes. With the
 // nodes disabled for the duration it is zero, and one sync each at the end

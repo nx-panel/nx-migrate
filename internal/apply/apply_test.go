@@ -9,11 +9,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
-	"github.com/nexora-vpn/nexora-migrate/internal/target"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/target"
 )
 
-// fakePanel is a Nexora stand-in that records what was asked of it. The applier
+// fakePanel is an NX stand-in that records what was asked of it. The applier
 // is the one part of this tool that writes to somebody's production panel, so
 // its behaviour is pinned against a real HTTP server rather than a mock object.
 type fakePanel struct {
@@ -197,7 +197,7 @@ func TestSelectNeverIncludesBlocked(t *testing.T) {
 }
 
 // The whole point of the late binding: a template names an inbound by the id
-// Nexora assigned it, which is only known once it has been created.
+// NX assigned it, which is only known once it has been created.
 func TestIDsAreSubstitutedAfterCreation(t *testing.T) {
 	panel := newPanel()
 	c := panel.start(t)
@@ -234,7 +234,7 @@ func TestIDsAreSubstitutedAfterCreation(t *testing.T) {
 }
 
 // A client whose template was left out of the run must not arrive provisioned
-// on nothing. Nexora's "every template" flag is the right answer.
+// on nothing. NX's "every template" flag is the right answer.
 func TestClientWithoutItsTemplateGoesEverywhere(t *testing.T) {
 	panel := newPanel()
 	c := panel.start(t)

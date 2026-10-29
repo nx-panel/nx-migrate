@@ -1,26 +1,26 @@
-# Migrating an existing panel into Nexora — how, and why that way
+# Migrating an existing panel into NX — how, and why that way
 
 Status: **built 2026-09-14.** The tool in this repository implements what
 follows; `README.md` is the operator's view and this is the reasoning. This
 document
 settles the two questions that decide every line of code that follows: *how do
-we get the data out of the old panel*, and *how do we get it into Nexora*.
+we get the data out of the old panel*, and *how do we get it into NX*.
 Everything in the "verified" tables below was read out of the upstream
 repositories on 2026-09-14, not remembered.
 
 ## Rulings (2026-09-14) — do not re-propose the opposite
 
 1. **Acquisition: database/backup file primary, source REST API secondary.** §2.
-2. **No panel-side work.** `nexora-migrate` uses only the panel APIs that exist
+2. **No panel-side work.** `nx-migrate` uses only the panel APIs that exist
    today. No `POST /api/users/import`, and no legacy subscription
    compatibility routes. The consequences are written into §4 and §5.1 — the
    loader works around both, it does not wait for them.
 3. **Build order: s-ui → 3x-ui → Marzban → Hiddify → PasarGuard → Remnawave →
    Marzneshin**, and the classic **x-ui** line added after them on 2026-09-14.
-4. **Public repository**, like `nexora-openvpn`. It holds no panel secrets and
+4. **Public repository**, like `nx-openvpn`. It holds no panel secrets and
    is read by exactly the operators we are trying to win.
 5. **A local web UI from the first release**, not a later addition — §6b, and
-   it is what shipped: `nexora-migrate` with no arguments binds 127.0.0.1,
+   it is what shipped: `nx-migrate` with no arguments binds 127.0.0.1,
    prints a one-time link, serves a five-step wizard and closes itself. There
    is no separate CLI: the wizard *is* the interface, and an operator who has
    to run it where the data is tunnels to it (`ssh -L`) rather than typing
@@ -39,7 +39,7 @@ repositories on 2026-09-14, not remembered.
 
 ## 0. What migration actually means here
 
-`nexora-panel/docs/product.md` records it plainly: **"The biggest remaining
+`nx-panel/docs/product.md` records it plainly: **"The biggest remaining
 migration blocker is Marzban / 3X-UI import. Export shipped; import was
 deliberately dropped and is still the thing that keeps an existing operator on
 their current panel."**
@@ -47,7 +47,7 @@ their current panel."**
 So the goal is not a generic ETL. It is one sentence:
 
 > An operator with 4,000 paying customers on Marzban or 3x-ui can move to
-> Nexora **without their customers noticing** — same credentials, same
+> NX **without their customers noticing** — same credentials, same
 > subscription links, same remaining quota and expiry date.
 
 Three consequences follow from "without their customers noticing", and they are
@@ -88,7 +88,7 @@ Two observations that drive everything:
   exactly what the 3x-ui Telegram-bot backup ships. There is no separate backup
   format to parse. A reader that speaks SQLite therefore covers the
   backup-file case and the live-DB case with the same code.
-- **s-ui's `clients` table is almost Nexora's `users` table.** `Volume`,
+- **s-ui's `clients` table is almost NX's `users` table.** `Volume`,
   `Expiry`, `Up`, `Down`, `Desc`, `Group`, `Remark`, `AutoReset`, `ResetDays`,
   `NextReset`, `TotalUp`, `TotalDown`, `OnlineAt`, `DelayStart` — same names,
   same meanings. s-ui is the cheapest source to implement and should be the
@@ -122,7 +122,7 @@ optionally through an SSH tunnel).
   creation times, admin ownership and per-node usage. One query per table
   instead of 200 paginated calls. Unaffected by API versioning. Works when the
   panel is stopped, broken, or already uninstalled. All three drivers exist in
-  pure Go, so Nexora's CGO-free rule survives.
+  pure Go, so NX's CGO-free rule survives.
 - *Against:* schema churn across source versions (mitigable — read defensively:
   probe `PRAGMA table_info` / `information_schema.columns` and select only
   columns that exist); needs reachability to the DB or a tunnel; reading a live
@@ -187,7 +187,7 @@ type Source interface {
 
 ## 3. Decision B — what flows through the middle
 
-### Option 1: direct pipe (source reader → Nexora API, in one process)
+### Option 1: direct pipe (source reader → NX API, in one process)
 
 Fewer moving parts, one command, no format to document. But: the extract cannot
 be reviewed before it is applied; a failed run halfway through has nothing to
@@ -203,7 +203,7 @@ bundle.zip
   manifest.json     source panel, version, extracted_at, row counts, tool version
   users.ndjson      one record per line
   admins.ndjson     optional
-  mapping.yaml      generated skeleton: source inbound/service/group → Nexora template + group
+  mapping.yaml      generated skeleton: source inbound/service/group → NX template + group
   notes.md          everything the reader could not represent (human-readable)
 ```
 
@@ -219,7 +219,7 @@ Why this is worth the extra format:
   upstream churns — and 3x-ui's v2→v3 rewrite shows how fast that churn is.
 - The operator can fix things in the bundle with `jq` — drop test accounts,
   resolve a name collision — without us building a UI for it.
-- It doubles as the Nexora→Nexora transfer format, and as the format a future
+- It doubles as the NX→NX transfer format, and as the format a future
   in-panel importer or migration addon would accept.
 
 The one risk is inventing a third data model. **Avoid it by construction:** the
@@ -242,9 +242,9 @@ plus a small `source` envelope. It is the plan, written down — not a schema.
 
 ---
 
-## 4. Decision C — how it is written into Nexora
+## 4. Decision C — how it is written into NX
 
-### Option 1: direct writes into the Nexora database — **reject**
+### Option 1: direct writes into the NX database — **reject**
 
 Fast, and wrong. It bypasses subscription-token generation, template
 many-to-many membership, the live node reconciliation
@@ -320,7 +320,7 @@ subscription URL is a single path segment:
 | Remnawave | `/api/sub/{shortUuid}` | ⚠️ needs a prefix route |
 
 For the ✅ rows, the whole migration is: import, then repoint the old hostname
-at Nexora. Customers change nothing.
+at NX. Customers change nothing.
 
 The ❌ and ⚠️ rows would each need a legacy compatibility route in the panel.
 **Ruling 2 says no panel work, so those three sources accept that subscription
@@ -342,7 +342,7 @@ though in practice the API returns the finished `subscription_url` anyway.
 
 ### 5.2 Credential collapse
 
-Nexora stores **one** credential set per user — `internal/api/sub.go:582`
+NX stores **one** credential set per user — `internal/api/sub.go:582`
 reads exactly `{uuid, password, flow, method}` — and each protocol picks the
 key it needs. Marzban, 3x-ui and Marzneshin store credentials **per protocol**.
 
@@ -359,19 +359,19 @@ protocols will break.** Never silently.
 ### 5.3 Inbounds, hosts and nodes are not importable
 
 Marzban hosts and 3x-ui inbounds are xray-shaped and carry the *source
-server's* ports, domains and certificates. Nexora's inbounds are sing-box-shaped
+server's* ports, domains and certificates. NX's inbounds are sing-box-shaped
 pool items attached to templates on specific nodes. Auto-converting them
 produces configs that look right and do not work.
 
-So: **users only.** The operator builds inbounds and templates in Nexora first,
-and `mapping.yaml` maps source inbound / service / group names onto Nexora
+So: **users only.** The operator builds inbounds and templates in NX first,
+and `mapping.yaml` maps source inbound / service / group names onto NX
 template ids and a group label. The skeleton is generated from the extract, so
 it is fill-in-the-blanks; `apply` refuses to run with unmapped keys unless
 `--default-template` is given.
 
 ### 5.4 Lifetime and quota semantics
 
-Nexora has both shapes — absolute `Expiry`, and `Duration` + `ActivatedAt` for
+NX has both shapes — absolute `Expiry`, and `Duration` + `ActivatedAt` for
 start-on-first-use — so coverage is good, but each source spells it
 differently and the mapping must be written down per source: Marzban's
 `on_hold_expire_duration`/`on_hold_timeout`, Marzneshin's `expire_strategy` +
@@ -389,21 +389,21 @@ spells unlimited as `-1` (Marzneshin's `ip_limit`) or `null` (Marzban's
 
 ### 5.5 Pre-flight: the licence cap
 
-Nexora's licence caps user count. Importing 12,000 accounts into a 1,000-user
+NX's licence caps user count. Importing 12,000 accounts into a 1,000-user
 licence must fail **before** anything is written. `plan` calls `/api/license`
 and reports the headroom.
 
 ### 5.6 Name collisions and charset
 
 Marzban usernames are `[a-zA-Z0-9_]{3,32}`; a 3x-ui client "email" is free text
-and is routinely Persian, with spaces. Nexora's `Name` is unique and appears in
+and is routinely Persian, with spaces. NX's `Name` is unique and appears in
 generated link remarks. Needs a normalise step plus an explicit collision
 policy (suffix / skip / fail), surfaced in the preview rather than chosen for
 the operator.
 
 ### 5.7 Admins and resellers — optional, default off
 
-Source admins can become Nexora `Admin` rows with role `resale`, and
+Source admins can become NX `Admin` rows with role `resale`, and
 `User.AdminID` preserves who owns whose book. Passwords cannot carry (different
 hashes), so: create with generated passwords printed once. Off by default
 because it is the one part of an import that can lock a sudo out.
@@ -413,29 +413,29 @@ because it is the one part of an import that can lock a sudo out.
 ## 6. Proposed shape of the tool
 
 ```
-nexora-migrate extract --from 3x-ui --db /path/to/x-ui.db        -o bundle.zip
-nexora-migrate extract --from marzban --api https://old --user … -o bundle.zip
-nexora-migrate inspect bundle.zip                  # counts, conflicts, mapping skeleton
-nexora-migrate plan    bundle.zip --panel … --token … --map mapping.yaml
-nexora-migrate apply   bundle.zip --panel … --token … --map mapping.yaml [--resume]
-nexora-migrate rollback --state run-2026-09-14.json
-nexora-migrate ui                                  # the same five steps in a browser (§6b)
+nx-migrate extract --from 3x-ui --db /path/to/x-ui.db        -o bundle.zip
+nx-migrate extract --from marzban --api https://old --user … -o bundle.zip
+nx-migrate inspect bundle.zip                  # counts, conflicts, mapping skeleton
+nx-migrate plan    bundle.zip --panel … --token … --map mapping.yaml
+nx-migrate apply   bundle.zip --panel … --token … --map mapping.yaml [--resume]
+nx-migrate rollback --state run-2026-09-14.json
+nx-migrate ui                                  # the same five steps in a browser (§6b)
 ```
 
 `plan` writes nothing and prints the full report; `apply` is chunked and
 resumable from a state file and emits `result.csv`
-(source name → Nexora id → status). `rollback` deletes exactly what its run
+(source name → NX id → status). `rollback` deletes exactly what its run
 created — nothing else.
 
-Layout (new folder, Go 1.26, CGO-free, module `github.com/nexora-vpn/nexora-migrate`):
+Layout (new folder, Go 1.26, CGO-free, module `github.com/nx-panel/nx-migrate`):
 
 ```
-cmd/nexora-migrate/     CLI and `ui`
+cmd/nx-migrate/     CLI and `ui`
 internal/webui/         the wizard server + go:embed of frontend/dist
-frontend/               Vue 3 + PrimeVue, same stack as nexora-panel/frontend
+frontend/               Vue 3 + PrimeVue, same stack as nx-panel/frontend
 internal/bundle/        the intermediate format + validation
 internal/source/        marzban/ threexui/ sui/ hiddify/ marzneshin/ remnawave/ csv/
-internal/target/        Nexora API client, generated from nexora-panel/internal/api/openapi.yaml
+internal/target/        NX API client, generated from nx-panel/internal/api/openapi.yaml
 internal/mapping/       mapping.yaml, policies, collision rules
 internal/report/        human report + machine JSON
 testdata/               fixture databases, per source per version
@@ -455,8 +455,8 @@ actually matter commercially:
 
 ## 6b. Decision D — CLI, or a web panel of its own?
 
-Ruling 2 removes the third possibility (a page inside nexora-panel), so the
-real choice is between a terminal tool and `nexora-migrate` serving a web UI of
+Ruling 2 removes the third possibility (a page inside nx-panel), so the
+real choice is between a terminal tool and `nx-migrate` serving a web UI of
 its own.
 
 **Where the tool has to run decides half of this.** The primary channel is the
@@ -466,7 +466,7 @@ server, every time. A web UI cannot be the only interface without forcing an
 `ssh -L` tunnel first — which is a terminal step, so the CLI exists either way.
 
 **Where a GUI would genuinely pay** is the middle: reviewing four thousand rows,
-seeing the collisions and the credential conflicts, and picking which Nexora
+seeing the collisions and the credential conflicts, and picking which NX
 template each source inbound maps to from a dropdown populated with the target
 panel's real templates. That is a table and a form, and a terminal is bad at
 both.
@@ -474,9 +474,9 @@ both.
 | Option | For | Against |
 |---|---|---|
 | **O1. CLI only** | one static binary; runs where the data is; scriptable; no port, no auth, no CSRF, no frontend build; the whole tool is testable | reviewing 4,000 rows and hand-editing `mapping.yaml` in `vi` is genuinely unpleasant for the audience we are courting |
-| **O2. CLI + local web UI** (`nexora-migrate ui`, bound to 127.0.0.1) | the wizard the operator wants: connect → preview → map with dropdowns → apply with a progress bar | a second product surface — frontend build, embed, auth, updates; on a headless VPS it still needs an SSH tunnel; and bound to `0.0.0.0` by a hurried operator it is an **unauthenticated endpoint holding the admin credentials of two panels and every subscription token** |
+| **O2. CLI + local web UI** (`nx-migrate ui`, bound to 127.0.0.1) | the wizard the operator wants: connect → preview → map with dropdowns → apply with a progress bar | a second product surface — frontend build, embed, auth, updates; on a headless VPS it still needs an SSH tunnel; and bound to `0.0.0.0` by a hurried operator it is an **unauthenticated endpoint holding the admin credentials of two panels and every subscription token** |
 | **O3. CLI + a self-contained HTML report** (no server) | `plan` writes `report.html`: the full sortable table, every conflict, the counts, the generated `mapping.yaml` ready to copy. One Go template, zero attack surface, opens with a double-click after `scp` | review is read-only; mapping is still edited as YAML |
-| **O4. A page in nexora-panel** | nothing to install | excluded by ruling 2, and by `product.md` decision 5, which dropped Marzban import from the users page |
+| **O4. A page in nx-panel** | nothing to install | excluded by ruling 2, and by `product.md` decision 5, which dropped Marzban import from the users page |
 
 ### Ruling: **O2 — CLI plus a local web UI, from the first release**
 
@@ -493,7 +493,7 @@ never a second implementation.
 **Security posture, non-negotiable**, because this process holds the admin
 credentials of two panels and the entire subscription-token book:
 
-- `nexora-migrate ui` binds **127.0.0.1** by default and prints a URL carrying a
+- `nx-migrate ui` binds **127.0.0.1** by default and prints a URL carrying a
   one-time random token; the token is exchanged for a session cookie on first
   load. No token, no access — never an open port with an implicit session.
 - Any other bind address requires an explicit `--allow-remote` **and** TLS
@@ -525,9 +525,9 @@ that the CLI also exposes:
    streams logs this way), then `result.csv` and a persisted `report.html`.
 
 **Stack:** Vue 3 + PrimeVue embedded with `go:embed`, matching
-`nexora-panel/frontend`, so components, styling and the developer flow are the
+`nx-panel/frontend`, so components, styling and the developer flow are the
 ones this codebase already has. The target-panel client is generated from
-`nexora-panel/internal/api/openapi.yaml`, same as the panel's own
+`nx-panel/internal/api/openapi.yaml`, same as the panel's own
 `schema.d.ts`.
 
 **The cost is real and should be planned for, not discovered:** the UI is
@@ -559,7 +559,7 @@ internal/source/xraysql/   what the two x-ui lines share: the account merge,
 internal/source/dbfetch/   the API channel for the three file-backed panels:
                            log in, download the panel's own backup, read it,
                            delete it
-internal/target/           the Nexora client: login, preflight, create
+internal/target/           the NX client: login, preflight, create
 internal/apply/            ordering, id late-binding, node pause/resume
 internal/web/              the wizard: server, guards, upload, SSE, assets/
 ```
@@ -626,7 +626,7 @@ the whole wizard end to end over HTTP, including its two access guards.
    only their accounts are converted. Both would need their own config-profile
    readers.
 3. **A dry-run against a live Marzban.** The whole pipeline was run against a
-   real nexora-panel build (see below); the REST-backed readers — Marzban,
+   real nx-panel build (see below); the REST-backed readers — Marzban,
    PasarGuard, Hiddify, Marzneshin, Remnawave — have not yet been pointed at a
    real instance of the panels they read. The backup-fetching channel has been,
    against a stand-in serving a real database on a secret base path.
@@ -640,12 +640,12 @@ the whole wizard end to end over HTTP, including its two access guards.
 A 3x-ui fixture — two inbounds (REALITY and WebSocket+TLS), five accounts
 including a Persian name and one on both inbounds, an Xray template with
 routing, DNS and two outbounds, one admin — was read and applied to a freshly
-migrated `nexora-panel` on SQLite. Twelve of twelve items created: the mirrored
+migrated `nx-panel` on SQLite. Twelve of twelve items created: the mirrored
 rule set, both inbounds, both outbounds, the template (with the inbound,
 outbound and rule-set ids resolved), the admin, and all five accounts with their
 uuids, quotas and expiry dates intact.
 
-The point of the exercise: `GET /sub/sub1` on the Nexora panel answers **200**
+The point of the exercise: `GET /sub/sub1` on the NX panel answers **200**
 for the subscription id the customer had in 3x-ui. That is the migration
 working.
 

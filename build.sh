@@ -10,8 +10,8 @@
 #
 set -e
 VERSION="${VERSION:-dev}"
-OUT="nexora-migrate"
-[ "${GOOS:-}" = "windows" ] && OUT="nexora-migrate.exe"
+OUT="nx-migrate"
+[ "${GOOS:-}" = "windows" ] && OUT="nx-migrate.exe"
 
 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$VERSION" -o "$OUT" .
 echo "built $OUT ($(du -h "$OUT" | cut -f1))"

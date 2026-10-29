@@ -5,7 +5,7 @@
 # version is the tag's name without its leading v:
 #   git tag v1.2.0 && git push origin v1.2.0
 #
-# The version reaches the binary through -ldflags, so `nexora-migrate -version`
+# The version reaches the binary through -ldflags, so `nx-migrate -version`
 # and the release page always agree.
 name: Release
 
@@ -63,15 +63,15 @@ jobs:
           ext=""
           [ "$GOOS" = "windows" ] && ext=".exe"
           mkdir -p stage dist
-          go build -trimpath -ldflags "-s -w -X main.version=$version" -o "stage/nexora-migrate$ext" .
+          go build -trimpath -ldflags "-s -w -X main.version=$version" -o "stage/nx-migrate$ext" .
           # No version in the file name: that is what keeps
           # releases/latest/download/<file> — the link the docs give — valid
           # for every release. The version is in the binary and the tag.
-          name="nexora-migrate-$GOOS-$GOARCH"
+          name="nx-migrate-$GOOS-$GOARCH"
           if [ "$GOOS" = "windows" ]; then
-            (cd stage && zip -q "../dist/$name.zip" "nexora-migrate$ext")
+            (cd stage && zip -q "../dist/$name.zip" "nx-migrate$ext")
           else
-            tar -czf "dist/$name.tar.gz" -C stage "nexora-migrate$ext"
+            tar -czf "dist/$name.tar.gz" -C stage "nx-migrate$ext"
           fi
           ls -l dist
 
@@ -118,11 +118,11 @@ jobs:
             echo
             echo "| Platform | File | Downloads |"
             echo "| --- | --- | --- |"
-            row "Windows (Intel/AMD)" nexora-migrate-windows-amd64.zip
-            row "Windows (ARM)" nexora-migrate-windows-arm64.zip
-            row "Linux (Intel/AMD)" nexora-migrate-linux-amd64.tar.gz
-            row "Linux (ARM)" nexora-migrate-linux-arm64.tar.gz
-            row "macOS (Apple silicon)" nexora-migrate-darwin-arm64.tar.gz
+            row "Windows (Intel/AMD)" nx-migrate-windows-amd64.zip
+            row "Windows (ARM)" nx-migrate-windows-arm64.zip
+            row "Linux (Intel/AMD)" nx-migrate-linux-amd64.tar.gz
+            row "Linux (ARM)" nx-migrate-linux-arm64.tar.gz
+            row "macOS (Apple silicon)" nx-migrate-darwin-arm64.tar.gz
             echo
             echo "Checksums are in \`SHA256SUMS\`."
           } > "$notes"
@@ -132,7 +132,7 @@ jobs:
             gh release upload "$GITHUB_REF_NAME" ./* --clobber
           else
             gh release create "$GITHUB_REF_NAME" ./* \
-              --title "nexora-migrate $VERSION" \
+              --title "nx-migrate $VERSION" \
               --notes-file "$notes" \
               --verify-tag
           fi

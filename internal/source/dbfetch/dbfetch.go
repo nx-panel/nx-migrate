@@ -29,8 +29,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/httpx"
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/httpx"
+	"github.com/nx-panel/nx-migrate/internal/source"
 )
 
 // Panel selects which login and which download path to use.
@@ -132,7 +132,7 @@ type attempt struct {
 }
 
 func download(ctx context.Context, c *httpx.Client, a attempt, base, panel string) (*Result, error) {
-	f, err := os.CreateTemp("", "nexora-migrate-*.db")
+	f, err := os.CreateTemp("", "nx-migrate-*.db")
 	if err != nil {
 		return nil, fmt.Errorf("could not open a temporary file to download into: %w", err)
 	}

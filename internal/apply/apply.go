@@ -1,4 +1,4 @@
-// Package apply writes a chosen subset of a bundle into Nexora.
+// Package apply writes a chosen subset of a bundle into NX.
 //
 // Three things matter here.
 //
@@ -8,7 +8,7 @@
 // in automatically — choosing a template without its inbounds would otherwise
 // produce a template that routes to nothing.
 //
-// The fleet: Nexora has no bulk create, and every account created reconciles
+// The fleet: NX has no bulk create, and every account created reconciles
 // every node it lands on. So the nodes are switched off for the duration and
 // synced once each at the end. Without that, a few thousand accounts is an
 // hour of pushes and a very unhappy fleet.
@@ -25,8 +25,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
-	"github.com/nexora-vpn/nexora-migrate/internal/target"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/target"
 )
 
 // Status is how one item ended.
@@ -142,7 +142,7 @@ func Run(ctx context.Context, c *target.Client, items []bundle.Item, opt Options
 		res.Finished = time.Now()
 	}()
 
-	created := map[string]uint{} // item id → the id Nexora assigned
+	created := map[string]uint{} // item id → the id NX assigned
 	total := len(items)
 
 	for i, it := range items {
@@ -204,7 +204,7 @@ func finish(res Result) Result {
 }
 
 // resolve turns an item's payload into the body to POST, substituting the ids
-// Nexora assigned to the things this item names.
+// NX assigned to the things this item names.
 func resolve(it bundle.Item, created map[string]uint) (json.RawMessage, error) {
 	if len(it.IDRefs) == 0 && len(it.IDRef) == 0 {
 		return it.Payload, nil
@@ -228,7 +228,7 @@ func resolve(it bundle.Item, created map[string]uint) (json.RawMessage, error) {
 		}
 	}
 	// A client whose templates were not part of this run must not arrive on no
-	// template at all — that would leave it provisioned nowhere. Nexora's
+	// template at all — that would leave it provisioned nowhere. NX's
 	// "everywhere" flag is the right answer, and it is what the panel would
 	// have chosen for a create with no template named.
 	if emptyList(body["templateIds"]) {

@@ -1,4 +1,4 @@
-module github.com/nexora-vpn/nexora-migrate
+module github.com/nx-panel/nx-migrate
 
 go 1.27.3
 

@@ -1,5 +1,5 @@
-// Command nexora-migrate moves the accounts and configuration of another VPN
-// panel into Nexora.
+// Command nx-migrate moves the accounts and configuration of another VPN
+// panel into NX.
 //
 // It is a wizard, not a service: run it, it opens a page on your own machine,
 // you walk through five steps, and it closes itself. There is nothing to
@@ -18,16 +18,16 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/web"
+	"github.com/nx-panel/nx-migrate/internal/web"
 
 	// Each reader registers itself. Adding a panel means adding one import.
-	_ "github.com/nexora-vpn/nexora-migrate/internal/source/hiddify"
-	_ "github.com/nexora-vpn/nexora-migrate/internal/source/marzban"
-	_ "github.com/nexora-vpn/nexora-migrate/internal/source/marzneshin"
-	_ "github.com/nexora-vpn/nexora-migrate/internal/source/remnawave"
-	_ "github.com/nexora-vpn/nexora-migrate/internal/source/sui"
-	_ "github.com/nexora-vpn/nexora-migrate/internal/source/xui"
-	_ "github.com/nexora-vpn/nexora-migrate/internal/source/xuiclassic"
+	_ "github.com/nx-panel/nx-migrate/internal/source/hiddify"
+	_ "github.com/nx-panel/nx-migrate/internal/source/marzban"
+	_ "github.com/nx-panel/nx-migrate/internal/source/marzneshin"
+	_ "github.com/nx-panel/nx-migrate/internal/source/remnawave"
+	_ "github.com/nx-panel/nx-migrate/internal/source/sui"
+	_ "github.com/nx-panel/nx-migrate/internal/source/xui"
+	_ "github.com/nx-panel/nx-migrate/internal/source/xuiclassic"
 )
 
 // version is stamped by the release build:
@@ -48,7 +48,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println("nexora-migrate " + version)
+		fmt.Println("nx-migrate " + version)
 		return
 	}
 
@@ -75,7 +75,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprint(os.Stderr, `nexora-migrate — move another panel's accounts and configuration into Nexora
+	fmt.Fprint(os.Stderr, `nx-migrate — move another panel's accounts and configuration into NX
 
 Run it with no arguments. It opens a page on this machine and walks you through:
 
@@ -85,9 +85,9 @@ Run it with no arguments. It opens a page on this machine and walks you through:
                           Marzban, PasarGuard, Hiddify, Marzneshin or
                           Remnawave over their own API
     2. review & select    everything it converted, in nested groups you tick
-    3. connect Nexora     address plus a login or an API token
+    3. connect NX     address plus a login or an API token
     4. preview            what will be written, and what the licence allows
-    5. transfer           written through Nexora's API, then the page closes
+    5. transfer           written through NX's API, then the page closes
                           the program
 
 Options:

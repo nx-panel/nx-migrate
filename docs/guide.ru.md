@@ -1,7 +1,7 @@
-# Переезд на Nexora
+# Переезд на NX
 
 Это руководство теперь на сайте документации — со снимками экрана, поиском и на всех четырёх языках:
 
-- [Переезд с другой панели](https://docs.nexora-panel.org/ru/start/migrate)
+- [Переезд с другой панели](https://docs.nx-panel.org/ru/start/migrate)
 
-Вся документация: https://docs.nexora-panel.org/ru/
+Вся документация: https://docs.nx-panel.org/ru/

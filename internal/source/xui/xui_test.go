@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/source"
 
 	_ "modernc.org/sqlite"
 )
@@ -192,7 +192,7 @@ func TestWireGuardBecomesEndpoint(t *testing.T) {
 	}
 }
 
-// One person on a VLESS inbound and a Trojan inbound is one Nexora user with
+// One person on a VLESS inbound and a Trojan inbound is one NX user with
 // both secrets — not two users, and not a conflict.
 func TestOneAccountAcrossTwoInbounds(t *testing.T) {
 	b := read(t)
@@ -314,7 +314,7 @@ func TestRoutingAndDNSConversion(t *testing.T) {
 
 func TestOutboundsFromTemplate(t *testing.T) {
 	b := read(t)
-	// A plain freedom tagged "direct" is exactly the outbound Nexora puts on
+	// A plain freedom tagged "direct" is exactly the outbound NX puts on
 	// every node; created again, the node refuses its config as a duplicate.
 	for _, it := range b.Items {
 		if it.Kind == bundle.KindOutbound && strings.EqualFold(it.SourceName, "direct") {

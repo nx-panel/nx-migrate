@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/httpx"
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/httpx"
+	"github.com/nx-panel/nx-migrate/internal/source"
 )
 
 // loginSUI authenticates against s-ui and returns the endpoints to try.

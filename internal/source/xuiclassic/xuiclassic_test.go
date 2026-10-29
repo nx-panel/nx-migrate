@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/source"
 
 	_ "modernc.org/sqlite"
 )
@@ -123,7 +123,7 @@ func payload(t *testing.T, it bundle.Item) map[string]any {
 // reader has to get right.
 func TestOutboundsComeFromTheirOwnTable(t *testing.T) {
 	b := read(t, true)
-	// This direct binds an address, so it is not Nexora's plain built-in: it
+	// This direct binds an address, so it is not NX's plain built-in: it
 	// stays, under a name that does not collide with the built-in's.
 	direct := find(t, b, "outbound:direct_2")
 	if payload(t, direct)["type"] != "direct" {

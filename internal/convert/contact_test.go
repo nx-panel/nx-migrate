@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/normalize"
+	"github.com/nx-panel/nx-migrate/internal/normalize"
 )
 
 // The customer's details are the half of a migration that used to be dropped:
 // every source panel keeps an email or a Telegram id somewhere, and before
-// Nexora had a column for them this tool read them, showed them in the review
+// NX had a column for them this tool read them, showed them in the review
 // table and then wrote a user without them.
 
 func TestSetContactSkipsEmptyValues(t *testing.T) {

@@ -20,7 +20,7 @@ func post(t *testing.T, url, key, name string, body []byte) (int, map[string]any
 		t.Fatal(err)
 	}
 	req.AddCookie(&http.Cookie{Name: cookieName, Value: key})
-	req.Header.Set("X-Nexora-Migrate", "1")
+	req.Header.Set("X-Nx-Migrate", "1")
 	req.Header.Set("X-File-Name", name)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {

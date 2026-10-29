@@ -9,7 +9,7 @@ import (
 
 // Client-only sing-box options: they read state only a client has — the
 // process or app behind a connection, the Wi-Fi network, the platform's
-// network monitor, a LAN neighbour, a Clash mode. Nexora offers none of them
+// network monitor, a LAN neighbour, a Clash mode. NX offers none of them
 // (the Panel's docs/product.md decision 29): the Panel refuses to save a
 // template carrying one and the node refuses a config naming one. A panel
 // whose routing was also run on clients (s-ui) may carry them, so they are

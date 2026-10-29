@@ -7,7 +7,7 @@
 // `client_traffics` table keyed by the client "email" that is unique
 // panel-wide, a `users` table of panel logins, and a `settings` key/value table.
 // One person therefore appears once per inbound they are on, and their counters
-// live somewhere else entirely — so a Nexora user is built by merging every
+// live somewhere else entirely — so an NX user is built by merging every
 // appearance of an email and then joining the counters on.
 //
 // Where they disagree is what surrounds that: 3x-ui keeps routing, DNS and the
@@ -23,10 +23,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
-	"github.com/nexora-vpn/nexora-migrate/internal/convert"
-	"github.com/nexora-vpn/nexora-migrate/internal/normalize"
-	"github.com/nexora-vpn/nexora-migrate/internal/sqlitex"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/convert"
+	"github.com/nx-panel/nx-migrate/internal/normalize"
+	"github.com/nx-panel/nx-migrate/internal/sqlitex"
 )
 
 // Panel is what one reader tells the shared code about its dialect.
@@ -77,7 +77,7 @@ type Account struct {
 type Accounts map[string]*Account
 
 // Merge folds one inbound's clients in, recording a conflict whenever the same
-// person holds a different secret on a different inbound — which Nexora, with
+// person holds a different secret on a different inbound — which NX, with
 // one credential set per user, cannot reproduce.
 func (a Accounts) Merge(clients []convert.XrayClient, protocol, inboundItem string) {
 	for _, c := range clients {
@@ -196,10 +196,10 @@ func Settings(db *sqlitex.DB) map[string]string {
 
 // Inbounds converts every inbound and collects the clients found inside them,
 // returning the bundle ids of the inbounds it produced. A WireGuard inbound
-// becomes a Nexora endpoint instead, which is where sing-box keeps it, and its
+// becomes an NX endpoint instead, which is where sing-box keeps it, and its
 // id is not in the returned list — a template selects inbounds, not endpoints.
 //
-// renamed collects source tag → Nexora tag so the routing conversion can follow
+// renamed collects source tag → NX tag so the routing conversion can follow
 // a tag that had to be normalised. A rule pointing at a tag that no longer
 // exists is a config a node refuses in full.
 func Inbounds(b *bundle.Bundle, db *sqlitex.DB, p Panel, tags *normalize.Namer, accounts Accounts, renamed map[string]string) []string {
@@ -266,7 +266,7 @@ func Inbounds(b *bundle.Bundle, db *sqlitex.DB, p Panel, tags *normalize.Namer, 
 			it.AddNote("%s", res.Note)
 		}
 		if r.Str("sniffing") != "" {
-			it.AddNote("sniffing was dropped — sing-box 1.12 and later express it as a route action, which Nexora sets on the template")
+			it.AddNote("sniffing was dropped — sing-box 1.12 and later express it as a route action, which NX sets on the template")
 		}
 		b.Add(it)
 		items = append(items, it.ID)
@@ -287,7 +287,7 @@ func WireGuardEndpoint(b *bundle.Bundle, p Panel, id int64, res normalize.Result
 		Name: res.Name, SourceName: res.Source, Group: []string{"wireguard"},
 	}
 	if protocol == "amneziawg" {
-		it.Block("AmneziaWG is not a sing-box endpoint type; rebuild it in Nexora if the node's overlay supports it")
+		it.Block("AmneziaWG is not a sing-box endpoint type; rebuild it in NX if the node's overlay supports it")
 		b.Add(it)
 		return
 	}
@@ -349,7 +349,7 @@ func WireGuardEndpoint(b *bundle.Bundle, p Panel, id int64, res normalize.Result
 	it.Payload = payload
 	it.Set("type", "wireguard")
 	it.Set("port", strconv.Itoa(port))
-	it.AddNote("Nexora mints WireGuard keys per user and derives addresses itself; these peers arrive as written and are not managed accounts")
+	it.AddNote("NX mints WireGuard keys per user and derives addresses itself; these peers arrive as written and are not managed accounts")
 	b.Add(it)
 	return emails
 }
@@ -380,7 +380,7 @@ func Admins(b *bundle.Bundle, db *sqlitex.DB, p Panel) {
 }
 
 // Clients joins the accounts gathered out of the inbounds with the
-// `client_traffics` counters and emits one Nexora user each.
+// `client_traffics` counters and emits one NX user each.
 func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accounts Accounts, templateItem string) {
 	traffic := map[string]sqlitex.Row{}
 	rows, err := db.Select("client_traffics", []string{
@@ -438,7 +438,7 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 			expiry = a.ExpiryMS
 		}
 		// These panels store milliseconds, and a *negative* value is their
-		// start-on-first-use shape: that much lifetime, not yet begun. Nexora
+		// start-on-first-use shape: that much lifetime, not yet begun. NX
 		// spells the same thing as Duration.
 		switch {
 		case expiry < 0:
@@ -457,11 +457,11 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 		var resetNote string
 		switch {
 		case a.TrafficReset == "hourly":
-			// Nexora's shortest cycle is a day; an hourly reset is
+			// NX's shortest cycle is a day; an hourly reset is
 			// effectively no quota at all, so it is said rather than faked.
-			resetNote = "the old panel reset this account's traffic every hour; Nexora's shortest cycle is a day, so no reset was set"
+			resetNote = "the old panel reset this account's traffic every hour; NX's shortest cycle is a day, so no reset was set"
 		case a.TrafficReset != "":
-			// 3x-ui's own traffic cycle, which is exactly Nexora's.
+			// 3x-ui's own traffic cycle, which is exactly NX's.
 			convert.ApplyResetStrategy(&c, a.TrafficReset, a.TrafficResetDay)
 		case resetDay > 0:
 			// Since 3x-ui v3.7 a renewal day turns the interval into a
@@ -472,7 +472,7 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 		}
 
 		// The two things this panel keeps about the person. The Telegram id
-		// goes on the customer's card; the note is a note, and Nexora already
+		// goes on the customer's card; the note is a note, and NX already
 		// has one field for that (docs/product.md decision 12) rather than a
 		// fourth free-text column for every importer to choose between.
 		convert.SetContact(&c, convert.ContactTelegramID, a.TelegramID)
@@ -499,7 +499,7 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 			it.AddNote("%s", resetNote)
 		}
 		if a.UUID == "" && a.Password == "" {
-			it.Block("this account has no credentials in the database — its inbound was probably deleted; recreate it in Nexora instead")
+			it.Block("this account has no credentials in the database — its inbound was probably deleted; recreate it in NX instead")
 		}
 		b.Add(it)
 	}
@@ -569,7 +569,7 @@ func Outbound(b *bundle.Bundle, tags *normalize.Namer, rc convert.RouteContext, 
 	typ, cfg, notes, ok := convert.Outbound(o)
 	if ok && len(notes) == 0 && convert.IsBuiltinDirect(tag, typ, cfg) && !convert.XrayOutboundExtras(o) {
 		rc.Renamed[tag] = convert.BuiltinDirect
-		b.Note("the old panel's plain %q outbound is the one Nexora already puts on every node, so it was not created again; rules that named it use Nexora's", tag)
+		b.Note("the old panel's plain %q outbound is the one NX already puts on every node, so it was not created again; rules that named it use NX's", tag)
 		return ""
 	}
 	res := tags.Tag(tag, fallbackName)
@@ -602,7 +602,7 @@ func Outbound(b *bundle.Bundle, tags *normalize.Namer, rc convert.RouteContext, 
 	return it.ID
 }
 
-// Template builds the one Nexora template these panels reduce to: the routing
+// Template builds the one NX template these panels reduce to: the routing
 // and DNS they ran, plus the selection of everything else that was converted.
 func Template(b *bundle.Bundle, p Panel, id string, route convert.Obj, core map[string]any, inbounds, outbounds, ruleSets []string) string {
 	payload := map[string]any{

@@ -4,16 +4,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/source"
 
 	// Every reader, so this test sees the registry the wizard actually shows.
-	_ "github.com/nexora-vpn/nexora-migrate/internal/source/hiddify"
-	_ "github.com/nexora-vpn/nexora-migrate/internal/source/marzban"
-	_ "github.com/nexora-vpn/nexora-migrate/internal/source/marzneshin"
-	_ "github.com/nexora-vpn/nexora-migrate/internal/source/remnawave"
-	_ "github.com/nexora-vpn/nexora-migrate/internal/source/sui"
-	_ "github.com/nexora-vpn/nexora-migrate/internal/source/xui"
-	_ "github.com/nexora-vpn/nexora-migrate/internal/source/xuiclassic"
+	_ "github.com/nx-panel/nx-migrate/internal/source/hiddify"
+	_ "github.com/nx-panel/nx-migrate/internal/source/marzban"
+	_ "github.com/nx-panel/nx-migrate/internal/source/marzneshin"
+	_ "github.com/nx-panel/nx-migrate/internal/source/remnawave"
+	_ "github.com/nx-panel/nx-migrate/internal/source/sui"
+	_ "github.com/nx-panel/nx-migrate/internal/source/xui"
+	_ "github.com/nx-panel/nx-migrate/internal/source/xuiclassic"
 )
 
 // The descriptor is the contract between a reader and the form the operator

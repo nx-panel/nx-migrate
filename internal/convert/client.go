@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
-	"github.com/nexora-vpn/nexora-migrate/internal/normalize"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/normalize"
 )
 
 // Client is the shape every source reader reduces one account to. It is
-// deliberately Nexora's vocabulary rather than any source panel's, so the
+// deliberately NX's vocabulary rather than any source panel's, so the
 // awkward parts of each panel — a single traffic counter, unlimited spelled as
 // -1 or null, a lifetime that has not started — are resolved inside the reader
 // where the panel's own semantics are known, not later where they are not.
@@ -21,7 +21,7 @@ type Client struct {
 	Name     string
 	Enable   bool
 
-	// One credential set, which is all Nexora keeps. A source that stores
+	// One credential set, which is all NX keeps. A source that stores
 	// credentials per protocol resolves the conflict before filling these in
 	// and records what it discarded in Conflicts.
 	UUID     string
@@ -31,7 +31,7 @@ type Client struct {
 	// Conflicts names the protocols whose credentials could not be carried.
 	Conflicts []string
 
-	// Quota and lifetime. Zero means unlimited / never, exactly as in Nexora,
+	// Quota and lifetime. Zero means unlimited / never, exactly as in NX,
 	// so a reader must normalise -1 and null before setting these.
 	Volume int64
 	Expiry int64 // unix seconds
@@ -50,20 +50,20 @@ type Client struct {
 	SpeedLimit int64
 	IPLimit    int
 
-	// The periodic reset, in Nexora's own shape: an empty ResetPeriod is the
+	// The periodic reset, in NX's own shape: an empty ResetPeriod is the
 	// rolling cycle measured in ResetDays, and a calendar cycle
 	// ("weekly"/"monthly"/"yearly") is anchored to ResetStartDay.
 	//
 	// Every source panel spells "monthly" as a strategy rather than a day
 	// count, and this tool used to write 30 days for it — which moves every
 	// migrated customer's reset day and keeps moving it, about five days a
-	// year. Nexora has calendar periods now, so the mapping is exact.
+	// year. NX has calendar periods now, so the mapping is exact.
 	AutoReset     bool
 	ResetDays     int
 	ResetPeriod   string
 	ResetStartDay int
 
-	// SubID carries the old panel's subscription token. Nexora resolves
+	// SubID carries the old panel's subscription token. NX resolves
 	// /sub/{id} against sub_id as well as sub_token, so an old link keeps
 	// working once the hostname points here.
 	SubID string
@@ -76,10 +76,10 @@ type Client struct {
 	Remark   string
 	OnlineAt int64
 
-	// Contact is the customer's own details on the Nexora side: telegram_id,
+	// Contact is the customer's own details on the NX side: telegram_id,
 	// email and phone, plus whatever else a source keeps about a person. Every
 	// panel this tool reads has *somewhere* to write a customer's email or
-	// Telegram id, and until Nexora had a column for it the importer read the
+	// Telegram id, and until NX had a column for it the importer read the
 	// field, showed it in the review table and then dropped it — the operator's
 	// contact list, lost in the one step that was supposed to preserve
 	// everything. Written with SetContact so an empty value is never a key.
@@ -141,7 +141,7 @@ func ClientItem(c Client, namer *normalize.Namer) bundle.Item {
 	}
 	if len(c.TemplateItems) == 0 {
 		// No template selected means the account goes everywhere, which is what
-		// an operator migrating a whole panel wants and what Nexora's create
+		// an operator migrating a whole panel wants and what NX's create
 		// route does by default.
 		payload["allTemplates"] = true
 	} else {
@@ -186,7 +186,7 @@ func ClientItem(c Client, namer *normalize.Namer) bundle.Item {
 		it.AddNote("%s", res.Note)
 	}
 	if len(c.Conflicts) > 0 {
-		it.AddNote("Nexora keeps one credential set per account; these protocols had their own and will change for this user: %s",
+		it.AddNote("NX keeps one credential set per account; these protocols had their own and will change for this user: %s",
 			strings.Join(c.Conflicts, ", "))
 	}
 	if c.SingleCounter && (c.Down > 0) {
@@ -224,7 +224,7 @@ func expiryLabel(c Client) string {
 }
 
 // bytesLabel renders a byte count the way an operator reads it, and says
-// "unlimited" for the zero that means exactly that everywhere in Nexora.
+// "unlimited" for the zero that means exactly that everywhere in NX.
 func bytesLabel(n int64) string {
 	if n == 0 {
 		return "unlimited"
@@ -260,10 +260,10 @@ func MillisToUnix(ms int64) int64 {
 	return ms / 1000
 }
 
-// ApplyResetStrategy maps a source panel's reset strategy onto Nexora's cycle.
+// ApplyResetStrategy maps a source panel's reset strategy onto NX's cycle.
 //
 // Every panel this tool reads spells the cycle as a strategy — day / week /
-// month / year, however each one capitalises it — and until Nexora had calendar
+// month / year, however each one capitalises it — and until NX had calendar
 // periods the only thing to write was a day count, so "month" became 30 days.
 // That is a silent change to what the customer bought: the reset day walks
 // about five days a year, and by the second year it is in the middle of a

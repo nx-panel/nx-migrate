@@ -14,13 +14,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
-	"github.com/nexora-vpn/nexora-migrate/internal/convert"
-	"github.com/nexora-vpn/nexora-migrate/internal/normalize"
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
-	"github.com/nexora-vpn/nexora-migrate/internal/source/dbfetch"
-	"github.com/nexora-vpn/nexora-migrate/internal/source/xraysql"
-	"github.com/nexora-vpn/nexora-migrate/internal/sqlitex"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/convert"
+	"github.com/nx-panel/nx-migrate/internal/normalize"
+	"github.com/nx-panel/nx-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/source/dbfetch"
+	"github.com/nx-panel/nx-migrate/internal/source/xraysql"
+	"github.com/nx-panel/nx-migrate/internal/sqlitex"
 )
 
 // WireGuardClientsArePeers: since v3.7 3x-ui keeps WireGuard peers under

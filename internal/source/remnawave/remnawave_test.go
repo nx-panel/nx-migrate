@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/normalize"
+	"github.com/nx-panel/nx-migrate/internal/normalize"
 )
 
 // Remnawave 3.0 dropped the account's uuid for a numeric id and nested the

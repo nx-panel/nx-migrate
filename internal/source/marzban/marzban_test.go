@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/source"
 )
 
 const coreConfig = `{"inbounds":[{"tag":"VLESS TCP","protocol":"vless","port":443,
@@ -70,7 +70,7 @@ func TestPasarGuardShape(t *testing.T) {
 	var boss struct{ Role string }
 	_ = json.Unmarshal(byID["admin:boss"].Payload, &boss)
 	if boss.Role != "admin" {
-		t.Errorf("the owner role should arrive as a Nexora admin, got %q", boss.Role)
+		t.Errorf("the owner role should arrive as an NX admin, got %q", boss.Role)
 	}
 	ali, ok := byID["client:ali"]
 	if !ok {

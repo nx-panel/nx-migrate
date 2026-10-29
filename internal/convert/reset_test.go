@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/normalize"
+	"github.com/nx-panel/nx-migrate/internal/normalize"
 )
 
 func newNamer() *normalize.Namer { return normalize.NewNamer() }

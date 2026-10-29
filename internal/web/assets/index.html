@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Nexora Migration</title>
+<title>NX Migration</title>
 <link rel="stylesheet" href="/assets/app.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
 <header class="bar">
   <div class="brand">
     <span class="dot"></span>
-    <strong data-i18n="title">Migrate to Nexora</strong>
+    <strong data-i18n="title">Migrate to NX</strong>
   </div>
   <div class="bar-right">
     <span class="origin" id="origin"></span>
@@ -22,7 +22,7 @@
 <nav class="steps" id="steps">
   <button type="button" data-step="1"><i>1</i><span data-i18n="step1">Source panel</span></button>
   <button type="button" data-step="2"><i>2</i><span data-i18n="step2">Review &amp; select</span></button>
-  <button type="button" data-step="3"><i>3</i><span data-i18n="step3">Connect Nexora</span></button>
+  <button type="button" data-step="3"><i>3</i><span data-i18n="step3">Connect NX</span></button>
   <button type="button" data-step="4"><i>4</i><span data-i18n="step4">Preview</span></button>
   <button type="button" data-step="5"><i>5</i><span data-i18n="step5">Transfer</span></button>
 </nav>
@@ -141,13 +141,13 @@
 
   <div class="actions">
     <button type="button" class="ghost" data-goto="1" data-i18n="back">Back</button>
-    <button type="button" class="primary" data-goto="3" data-i18n="s2.next">Continue to Nexora</button>
+    <button type="button" class="primary" data-goto="3" data-i18n="s2.next">Continue to NX</button>
   </div>
 </section>
 
 <!-- ───────────────────────── step 3: target ───────────────────────── -->
 <section class="panel" data-panel="3" hidden>
-  <h1 data-i18n="s3.title">Connect to Nexora</h1>
+  <h1 data-i18n="s3.title">Connect to NX</h1>
   <p class="lede" data-i18n="s3.lede">Everything is written through the panel's public API — never straight into its database — so subscription tokens, template membership, node syncing and the licence cap all happen properly.</p>
 
   <form class="form" id="target-form">
@@ -204,7 +204,7 @@
     <input type="checkbox" id="pause-nodes" checked>
     <span data-i18n="s4.pause">Switch the nodes off during the transfer (and sync them once at the end)</span>
   </label>
-  <p class="hint" data-i18n="s4.pausewhy">Nexora has no bulk create: every new account is pushed to each of its nodes. With the nodes paused, 20,000 accounts means zero pushes during the run and one sync at the end.</p>
+  <p class="hint" data-i18n="s4.pausewhy">NX has no bulk create: every new account is pushed to each of its nodes. With the nodes paused, 20,000 accounts means zero pushes during the run and one sync at the end.</p>
 
   <div class="field" id="confirm-box" hidden>
     <label for="confirm-code" data-i18n="s4.code">This account signed in with a second factor and the selection creates admins, which the panel confirms with a fresh code. Enter the current code from the authenticator app.</label>

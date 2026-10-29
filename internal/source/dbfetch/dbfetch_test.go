@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/source"
 )
 
 // A minimal but real SQLite header, which is all the sniffing checks. The

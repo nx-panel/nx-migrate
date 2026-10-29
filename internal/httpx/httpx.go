@@ -1,4 +1,4 @@
-// Package httpx is the small HTTP client the API-backed readers and the Nexora
+// Package httpx is the small HTTP client the API-backed readers and the NX
 // target client share: bearer or header auth, JSON in and out, and errors that
 // quote the server rather than saying "unexpected status".
 //

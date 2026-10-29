@@ -29,10 +29,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/apply"
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
-	"github.com/nexora-vpn/nexora-migrate/internal/target"
+	"github.com/nx-panel/nx-migrate/internal/apply"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/target"
 )
 
 //go:embed assets/*
@@ -104,7 +104,7 @@ func (s *Server) Run(ctx context.Context) error {
 	url := s.entryURL(ln.Addr().(*net.TCPAddr))
 
 	fmt.Println()
-	fmt.Println("  Nexora migration wizard")
+	fmt.Println("  NX migration wizard")
 	fmt.Println("  ───────────────────────")
 	fmt.Println("  Open this in your browser:")
 	fmt.Println()
@@ -179,7 +179,7 @@ func (s *Server) routes() http.Handler {
 	return mux
 }
 
-const cookieName = "nexora_migrate"
+const cookieName = "nx_migrate"
 
 // handleIndex exchanges the one-time key in the URL for a session cookie and
 // serves the wizard.
@@ -229,7 +229,7 @@ func (s *Server) guard(next http.HandlerFunc) http.HandlerFunc {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "this session is not authorised; reopen the link the program printed"})
 			return
 		}
-		if r.Method != http.MethodGet && r.Header.Get("X-Nexora-Migrate") != "1" {
+		if r.Method != http.MethodGet && r.Header.Get("X-Nx-Migrate") != "1" {
 			writeJSON(w, http.StatusForbidden, map[string]string{"error": "missing the wizard's own request header"})
 			return
 		}
@@ -266,7 +266,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		name = "database.db"
 	}
 
-	f, err := os.CreateTemp("", "nexora-migrate-upload-*.db")
+	f, err := os.CreateTemp("", "nx-migrate-upload-*.db")
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "could not open a temporary file: " + err.Error()})
 		return
@@ -519,7 +519,7 @@ func collisionWarnings(pre target.Preflight, names map[bundle.Kind][]string) []s
 				shown = shown[:5]
 			}
 			out = append(out, fmt.Sprintf(
-				"%d %s(s) already exist in Nexora with the same name and will be left alone: %s%s",
+				"%d %s(s) already exist in NX with the same name and will be left alone: %s%s",
 				len(clash), kind, strings.Join(shown, ", "), more(len(clash)-len(shown))))
 		}
 	}
@@ -556,7 +556,7 @@ func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
 	b, c := s.bundle, s.client
 	if b == nil || c == nil {
 		s.mu.Unlock()
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "read a source and connect to Nexora first"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "read a source and connect to NX first"})
 		return
 	}
 	items, _ := apply.Select(b, toSet(req.Selected))

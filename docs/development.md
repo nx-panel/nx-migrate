@@ -1,6 +1,6 @@
 # Development
 
-For people changing nexora-migrate. Using it is covered in the
+For people changing nx-migrate. Using it is covered in the
 [guide](guide.en.md).
 
 ## Build
@@ -43,7 +43,7 @@ internal/httpx/            JSON HTTP that quotes the server in its errors
 internal/source/<panel>/   one reader per source panel
 internal/source/xraysql/   what the two x-ui lines share
 internal/source/dbfetch/   the backup-download channel for s-ui, 3x-ui and x-ui
-internal/target/           the Nexora client: login, preflight, create
+internal/target/           the NX client: login, preflight, create
 internal/apply/            ordering, id late-binding, node pause/resume
 internal/web/              the wizard: server, guards, upload, SSE, assets/
 ```
@@ -65,6 +65,6 @@ The design and the reasoning behind it are in [approach.md](approach.md).
 git tag v1.2.0 && git push origin v1.2.0
 ```
 
-Archive names carry no version (`nexora-migrate-linux-amd64.tar.gz`), so the
+Archive names carry no version (`nx-migrate-linux-amd64.tar.gz`), so the
 `releases/latest/download/…` links in the README and the guides stay valid for
-every release. The version is stamped into the binary: `nexora-migrate -version`.
+every release. The version is stamped into the binary: `nx-migrate -version`.

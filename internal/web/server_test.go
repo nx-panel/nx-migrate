@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/nexora-vpn/nexora-migrate/internal/source/sui"
+	_ "github.com/nx-panel/nx-migrate/internal/source/sui"
 
 	_ "modernc.org/sqlite"
 )
@@ -46,7 +46,7 @@ func call(t *testing.T, ts *httptest.Server, method, path string, body any, key 
 		req.AddCookie(&http.Cookie{Name: cookieName, Value: key})
 	}
 	if method != http.MethodGet {
-		req.Header.Set("X-Nexora-Migrate", "1")
+		req.Header.Set("X-Nx-Migrate", "1")
 		req.Header.Set("Content-Type", "application/json")
 	}
 	res, err := http.DefaultClient.Do(req)
@@ -98,8 +98,8 @@ func suiFixture(t *testing.T) string {
 	return path
 }
 
-// fakeNexora is the smallest panel the wizard can talk to.
-func fakeNexora(t *testing.T) *httptest.Server {
+// fakeNX is the smallest panel the wizard can talk to.
+func fakeNX(t *testing.T) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
 	ok := func(v any) http.HandlerFunc {
@@ -148,7 +148,7 @@ func TestMutatingCallsNeedTheWizardHeader(t *testing.T) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusForbidden {
-		t.Errorf("status = %d, want 403 without X-Nexora-Migrate", res.StatusCode)
+		t.Errorf("status = %d, want 403 without X-Nx-Migrate", res.StatusCode)
 	}
 }
 
@@ -194,7 +194,7 @@ func TestPublicListenIsRefusedWithoutTLS(t *testing.T) {
 func TestFullWizardFlow(t *testing.T) {
 	s, ts := newServer(t)
 	key := s.token
-	panel := fakeNexora(t)
+	panel := fakeNX(t)
 
 	// 1. the source list
 	code, out := call(t, ts, http.MethodGet, "/api/sources", nil, key)

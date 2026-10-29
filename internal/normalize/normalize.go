@@ -1,13 +1,13 @@
-// Package normalize turns a source panel's names into names Nexora accepts,
+// Package normalize turns a source panel's names into names NX accepts,
 // and says out loud whenever it had to change one.
 //
 // The rules are deliberately conservative. A name is a user's identity in the
 // panel, it is what an operator searches for, and for s-ui it is also the
 // subscription id — so the only changes made are the ones that would otherwise
 // break something: characters that cannot survive a URL path or a config file,
-// and collisions, which Nexora's unique index would reject outright.
+// and collisions, which NX's unique index would reject outright.
 //
-// Persian and other non-ASCII letters are kept. Nexora puts no charset
+// Persian and other non-ASCII letters are kept. NX puts no charset
 // constraint on a user name, 3x-ui client "emails" are routinely Persian, and
 // transliterating them would leave an operator unable to find their own
 // customers.
@@ -21,7 +21,7 @@ import (
 
 // Namer normalises names within one namespace and remembers what it has already
 // handed out, so two source rows that collapse to the same name get different
-// Nexora names instead of one overwriting the other.
+// NX names instead of one overwriting the other.
 type Namer struct {
 	taken map[string]string // normalised (lowered) → the source name that claimed it
 }
@@ -41,7 +41,7 @@ func (n *Namer) Reserve(name string) {
 
 // Result is one normalisation.
 type Result struct {
-	Name    string // the name to use in Nexora
+	Name    string // the name to use in NX
 	Source  string // the name in the old panel
 	Changed bool
 	Note    string // why it changed; empty when it did not
@@ -84,7 +84,7 @@ func (n *Namer) Name(source, fallback string) Result {
 	return res
 }
 
-// maxLen is a self-imposed ceiling. Nexora does not enforce one, but a name is
+// maxLen is a self-imposed ceiling. NX does not enforce one, but a name is
 // shown in tables, written into generated link remarks and searched on, and a
 // 400-character client "email" pasted out of a spreadsheet helps nobody.
 const maxLen = 64

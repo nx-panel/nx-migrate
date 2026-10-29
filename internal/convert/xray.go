@@ -1,5 +1,5 @@
 // Package convert turns another engine's configuration into the sing-box shapes
-// Nexora stores.
+// NX stores.
 //
 // The panels split in two. s-ui already runs sing-box, so its inbounds,
 // outbounds, endpoints, routing and DNS are carried across almost verbatim.
@@ -23,7 +23,7 @@ import (
 // strings containing JSON, so readers hand those here as already-decoded maps.
 type Obj = map[string]any
 
-// XrayInbound is one converted inbound: the sing-box type and config Nexora
+// XrayInbound is one converted inbound: the sing-box type and config NX
 // will store, plus whatever had to be said about it.
 type XrayInbound struct {
 	Type   string
@@ -32,7 +32,7 @@ type XrayInbound struct {
 	// Blocked is set when there is no sing-box equivalent at all.
 	Blocked string
 	// Clients are the per-user credentials found inside the inbound, which is
-	// where Xray keeps them. Nexora keeps users separately, so these are
+	// where Xray keeps them. NX keeps users separately, so these are
 	// collected and merged into the client list instead.
 	Clients []XrayClient
 }
@@ -45,7 +45,7 @@ type XrayClient struct {
 	Flow     string
 	Method   string
 	SubID    string
-	// LimitIP and TotalGB are 3x-ui's per-client limits, which Nexora has as
+	// LimitIP and TotalGB are 3x-ui's per-client limits, which NX has as
 	// real columns.
 	LimitIP    int
 	TotalBytes int64
@@ -60,7 +60,7 @@ type XrayClient struct {
 	TrafficResetDay int
 	// What 3x-ui keeps about the *person*: the Telegram id the panel's bot
 	// messages them on, and a free-text note. Both were read by nobody before
-	// Nexora had somewhere to put them.
+	// NX had somewhere to put them.
 	TelegramID string
 	Comment    string
 }
@@ -111,9 +111,9 @@ func Inbound(protocol string, listen string, port int, settings, stream Obj) Xra
 	if !ok {
 		switch strings.ToLower(protocol) {
 		case "wireguard", "amneziawg":
-			out.Blocked = "WireGuard is an endpoint in Nexora, not an inbound; it is listed under Endpoints instead"
+			out.Blocked = "WireGuard is an endpoint in NX, not an inbound; it is listed under Endpoints instead"
 		case "dokodemo-door", "tunnel":
-			out.Blocked = "a port-forwarding inbound has no Nexora equivalent — build it as routing instead"
+			out.Blocked = "a port-forwarding inbound has no NX equivalent — build it as routing instead"
 		default:
 			out.Blocked = fmt.Sprintf("sing-box has no inbound of type %q", protocol)
 		}
@@ -170,7 +170,7 @@ func applyProtocolSettings(out *XrayInbound, protocol string, settings Obj) {
 		if d := strings.TrimSpace(str(settings["decryption"])); d != "" && d != "none" {
 			out.Config["decryption"] = d
 			out.Notes = append(out.Notes,
-				"VLESS Encryption came across with its keys, so existing clients keep working; Nexora serves no XTLS Vision flow under it, so any vision flow is dropped for this inbound")
+				"VLESS Encryption came across with its keys, so existing clients keep working; NX serves no XTLS Vision flow under it, so any vision flow is dropped for this inbound")
 		}
 	case "tuic", "hysteria", "hysteria2":
 		if v := settings["congestion_control"]; v != nil {
@@ -178,11 +178,11 @@ func applyProtocolSettings(out *XrayInbound, protocol string, settings Obj) {
 		}
 	}
 
-	// Fallbacks are Xray's; Nexora expresses the same idea as an ingress
+	// Fallbacks are Xray's; NX expresses the same idea as an ingress
 	// router, which is a different object and cannot be derived from these.
 	if fb, ok := settings["fallbacks"].([]any); ok && len(fb) > 0 {
 		out.Notes = append(out.Notes,
-			fmt.Sprintf("%d fallback target(s) were dropped — Nexora routes this with an ingress inbound, which has to be built by hand", len(fb)))
+			fmt.Sprintf("%d fallback target(s) were dropped — NX routes this with an ingress inbound, which has to be built by hand", len(fb)))
 	}
 }
 
@@ -295,7 +295,7 @@ func applyStream(out *XrayInbound, stream Obj) {
 		}
 		out.Config["transport"] = t
 	case "xhttp", "splithttp":
-		// Nexora's node carries xhttp in its overlay, so this one survives.
+		// NX's node carries xhttp in its overlay, so this one survives.
 		t := Obj{"type": "xhttp"}
 		x := objOf(stream, "xhttpSettings")
 		if x == nil {
@@ -403,7 +403,7 @@ func applyTLS(out *XrayInbound, stream Obj) {
 		tls["reality"] = reality
 		if str(r["publicKey"]) == "" && str(r["privateKey"]) == "" {
 			out.Notes = append(out.Notes,
-				"this REALITY inbound carried no private key, so Nexora generates a new one when it is created — clients of this inbound need their new link")
+				"this REALITY inbound carried no private key, so NX generates a new one when it is created — clients of this inbound need their new link")
 		}
 	default:
 		out.Notes = append(out.Notes, fmt.Sprintf("unknown stream security %q was dropped", security))
@@ -426,7 +426,7 @@ func applyCertificates(out *XrayInbound, tls, t Obj) {
 				tls["key_path"] = k
 			}
 			out.Notes = append(out.Notes,
-				fmt.Sprintf("the certificate is a path on the old server (%s) — the file has to exist on the Nexora node too, or assign a panel certificate instead", f))
+				fmt.Sprintf("the certificate is a path on the old server (%s) — the file has to exist on the NX node too, or assign a panel certificate instead", f))
 			return
 		}
 		if lines := stringsOf(c["certificate"]); len(lines) > 0 {
@@ -439,7 +439,7 @@ func applyCertificates(out *XrayInbound, tls, t Obj) {
 	}
 	if len(certs) == 0 {
 		out.Notes = append(out.Notes,
-			"TLS is on but no certificate came across — assign a Nexora panel certificate or the node's own before enabling this inbound")
+			"TLS is on but no certificate came across — assign an NX panel certificate or the node's own before enabling this inbound")
 	}
 }
 
@@ -540,7 +540,7 @@ func Outbound(o Obj) (typ string, config Obj, notes []string, ok bool) {
 		delete(cfg, "listen")
 		return protocol, cfg, stub.Notes, true
 	case "wireguard":
-		return "", nil, []string{"WireGuard egress is an endpoint in Nexora, not an outbound"}, false
+		return "", nil, []string{"WireGuard egress is an endpoint in NX, not an outbound"}, false
 	}
 	return "", nil, []string{fmt.Sprintf("sing-box has no outbound of type %q", protocol)}, false
 }
@@ -671,7 +671,7 @@ func Routing(routing Obj, rc RouteContext) (route Obj, notes []string, ruleSets 
 	}
 	if bal, _ := routing["balancers"].([]any); len(bal) > 0 {
 		notes = append(notes,
-			fmt.Sprintf("%d load balancer(s) were dropped — build them as a selector or urltest outbound in Nexora", len(bal)))
+			fmt.Sprintf("%d load balancer(s) were dropped — build them as a selector or urltest outbound in NX", len(bal)))
 	}
 	return route, notes, ruleSets
 }
@@ -1016,13 +1016,13 @@ func copyNum(dst Obj, key string, v any) {
 	}
 }
 
-// BuiltinDirect is the outbound tag Nexora puts on every node config itself
+// BuiltinDirect is the outbound tag NX puts on every node config itself
 // (a plain `direct`). An imported outbound under the same tag makes the node
 // refuse its whole configuration as a duplicate, so readers reserve the name
 // and fold a plain direct outbound into the built-in one.
 const BuiltinDirect = "direct"
 
-// IsBuiltinDirect reports whether an outbound is exactly the one Nexora
+// IsBuiltinDirect reports whether an outbound is exactly the one NX
 // already provides: a direct outbound tagged "direct" with no options.
 func IsBuiltinDirect(tag, typ string, cfg map[string]any) bool {
 	if !strings.EqualFold(tag, BuiltinDirect) || typ != "direct" {

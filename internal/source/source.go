@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
 )
 
 // Channel is how a reader gets at the data.

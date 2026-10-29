@@ -109,7 +109,7 @@ function applyLang() {
 /* ── plumbing ──────────────────────────────────────────────────────── */
 
 async function api(path, body) {
-  const opt = { headers: { "X-Nexora-Migrate": "1" } };
+  const opt = { headers: { "X-Nx-Migrate": "1" } };
   if (body !== undefined) {
     opt.method = "POST";
     opt.headers["Content-Type"] = "application/json";
@@ -298,7 +298,7 @@ function upload(file) {
 
   const xhr = new XMLHttpRequest();
   xhr.open("POST", "/api/upload");
-  xhr.setRequestHeader("X-Nexora-Migrate", "1");
+  xhr.setRequestHeader("X-Nx-Migrate", "1");
   xhr.setRequestHeader("Content-Type", "application/octet-stream");
   xhr.setRequestHeader("X-File-Name", encodeURIComponent(file.name).replace(/%20/g, " "));
   xhr.upload.onprogress = (e) => {
@@ -579,7 +579,7 @@ $("#select-none").onclick = () => {
   renderTree();
 };
 
-/* ── step 3: connect to Nexora ─────────────────────────────────────── */
+/* ── step 3: connect to NX ─────────────────────────────────────── */
 
 let lastPreflight = null;
 let targetAuth = "login";
@@ -778,7 +778,7 @@ $("#save-report").onclick = () => {
   const res = lastResult;
   if (!res) return;
   const lines = [
-    `Nexora migration report`,
+    `NX migration report`,
     `started  ${res.started}`,
     `finished ${res.finished}`,
     ``,
@@ -799,7 +799,7 @@ $("#save-report").onclick = () => {
   const blob = new Blob([lines.join("\n")], { type: "text/plain" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "nexora-migration-report.txt";
+  a.download = "nx-migration-report.txt";
   a.click();
   URL.revokeObjectURL(a.href);
 };

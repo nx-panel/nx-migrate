@@ -3,7 +3,7 @@
 // A source reader turns whatever the old panel stores into a []Item; the web
 // wizard renders those items as a tree and lets the operator tick a subset; the
 // applier walks the ticked subset in dependency order and POSTs each item's
-// payload to Nexora. Nothing else knows what a Marzban row or an x-ui inbound
+// payload to NX. Nothing else knows what a Marzban row or an x-ui inbound
 // looks like.
 //
 // The one rule that keeps this honest: an Item's Payload is *the request body
@@ -17,7 +17,7 @@ import (
 	"sort"
 )
 
-// Kind is what an item becomes in Nexora. The order of these constants is the
+// Kind is what an item becomes in NX. The order of these constants is the
 // order items must be applied in: a template names inbound ids, a client names
 // template ids, so the things being named have to exist first.
 type Kind string
@@ -46,7 +46,7 @@ func Order(k Kind) int {
 	return 99
 }
 
-// Path is the Nexora API path a kind is created at.
+// Path is the NX API path a kind is created at.
 func (k Kind) Path() string {
 	switch k {
 	case KindRuleSet:
@@ -105,7 +105,7 @@ type Item struct {
 	ID   string `json:"id"`
 	Kind Kind   `json:"kind"`
 
-	// Name is what the item will be called in Nexora (already normalised).
+	// Name is what the item will be called in NX (already normalised).
 	Name string `json:"name"`
 	// SourceName is what it was called in the old panel. Equal to Name when
 	// nothing had to be changed.
@@ -128,7 +128,7 @@ type Item struct {
 	Payload json.RawMessage `json:"payload"`
 
 	// IDRefs late-binds a list of ids: field name in Payload → item IDs whose
-	// created Nexora ids go there as a []uint. Resolved by the applier.
+	// created NX ids go there as a []uint. Resolved by the applier.
 	IDRefs map[string][]string `json:"idRefs,omitempty"`
 	// IDRef is the same for a single id (a user's owning admin). A reference
 	// whose target was not selected is dropped, not failed: an account whose

@@ -6,7 +6,7 @@
 // plain columns, so nothing has to be derived or parsed out of a link.
 //
 // Its subscription URL is /api/sub/{shortUuid}: one segment, but behind a
-// fixed prefix Nexora does not serve. The short uuid is carried into Nexora's
+// fixed prefix NX does not serve. The short uuid is carried into NX's
 // sub id anyway, so the account is reachable at /sub/{shortUuid} — the token
 // survives even though the full old URL does not.
 package remnawave
@@ -18,11 +18,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
-	"github.com/nexora-vpn/nexora-migrate/internal/convert"
-	"github.com/nexora-vpn/nexora-migrate/internal/httpx"
-	"github.com/nexora-vpn/nexora-migrate/internal/normalize"
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/convert"
+	"github.com/nx-panel/nx-migrate/internal/httpx"
+	"github.com/nx-panel/nx-migrate/internal/normalize"
+	"github.com/nx-panel/nx-migrate/internal/source"
 )
 
 func init() {
@@ -110,8 +110,8 @@ func (reader) Read(ctx context.Context, opt source.Options) (*bundle.Bundle, err
 	}
 
 	b := &bundle.Bundle{Source: bundle.SourceInfo{Panel: "Remnawave", Origin: c.Base}}
-	b.Note("Remnawave serves subscriptions at /api/sub/<short uuid>. The short uuid is carried into Nexora's sub id, so each account keeps its token at /sub/<short uuid> — but the old full URL will not resolve, because its /api/sub prefix is Remnawave's.")
-	b.Note("Remnawave's inbounds live in config profiles and internal squads rather than one engine document; those are not converted here, so build the inbounds in Nexora first and the accounts will attach to them.")
+	b.Note("Remnawave serves subscriptions at /api/sub/<short uuid>. The short uuid is carried into NX's sub id, so each account keeps its token at /sub/<short uuid> — but the old full URL will not resolve, because its /api/sub prefix is Remnawave's.")
+	b.Note("Remnawave's inbounds live in config profiles and internal squads rather than one engine document; those are not converted here, so build the inbounds in NX first and the accounts will attach to them.")
 
 	if err := readUsers(ctx, c, b); err != nil {
 		return nil, err
@@ -167,7 +167,7 @@ func userItem(u user, names *normalize.Namer) bundle.Item {
 		Down:          u.UsedTrafficBytes,
 		SingleCounter: true,
 		UUID:          u.VlessUUID,
-		// Trojan and Shadowsocks hold different secrets here and Nexora keeps
+		// Trojan and Shadowsocks hold different secrets here and NX keeps
 		// one password, so Trojan wins and Shadowsocks is reported.
 		Password: u.TrojanPassword,
 		SubID:    u.ShortUUID,
@@ -191,7 +191,7 @@ func userItem(u user, names *normalize.Namer) bundle.Item {
 	}
 	convert.ApplyResetStrategy(&c, u.TrafficLimitStrategy, 0)
 	// The customer's own details. This panel has had them all along; until
-	// Nexora had a column for them the importer read the email, showed it in
+	// NX had a column for them the importer read the email, showed it in
 	// the review table and then threw it away.
 	convert.SetContact(&c, convert.ContactEmail, u.Email)
 	convert.SetContact(&c, convert.ContactTelegramID, u.TelegramID.String())
@@ -200,7 +200,7 @@ func userItem(u user, names *normalize.Namer) bundle.Item {
 	it.Set("status", u.Status)
 	if u.HwidDeviceLimit != nil && *u.HwidDeviceLimit > 0 {
 		it.Set("device limit", fmt.Sprint(*u.HwidDeviceLimit))
-		// Nexora has the same cap, and it is worth carrying.
+		// NX has the same cap, and it is worth carrying.
 		it.Payload = withField(it.Payload, "deviceLimit", *u.HwidDeviceLimit)
 	}
 	if u.Email != "" {

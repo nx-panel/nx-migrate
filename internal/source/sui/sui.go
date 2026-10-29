@@ -1,13 +1,13 @@
 // Package sui reads an s-ui installation.
 //
-// s-ui is the closest thing to a sibling Nexora has: it already runs sing-box,
+// s-ui is the closest thing to a sibling NX has: it already runs sing-box,
 // its `clients` table carries the same columns under the same names, and its
 // inbounds, outbounds and endpoints are sing-box documents rather than a
 // different engine's. Almost nothing here is a conversion — it is a copy with
 // the tags and names checked.
 //
 // The two places it is not a copy: s-ui keeps credentials per protocol inside
-// one client (Nexora keeps one set), and s-ui `services` have no Nexora
+// one client (NX keeps one set), and s-ui `services` have no NX
 // equivalent at all.
 package sui
 
@@ -18,12 +18,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/bundle"
-	"github.com/nexora-vpn/nexora-migrate/internal/convert"
-	"github.com/nexora-vpn/nexora-migrate/internal/normalize"
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
-	"github.com/nexora-vpn/nexora-migrate/internal/source/dbfetch"
-	"github.com/nexora-vpn/nexora-migrate/internal/sqlitex"
+	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/convert"
+	"github.com/nx-panel/nx-migrate/internal/normalize"
+	"github.com/nx-panel/nx-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/source/dbfetch"
+	"github.com/nx-panel/nx-migrate/internal/sqlitex"
 )
 
 func init() {
@@ -142,7 +142,7 @@ func readInbounds(b *bundle.Bundle, db *sqlitex.DB, tls map[int64]json.RawMessag
 			}
 		}
 		// s-ui stores the credentials on the client, never on the inbound —
-		// same as Nexora, which injects them per node.
+		// same as NX, which injects them per node.
 		delete(cfg, "users")
 
 		payload := map[string]any{
@@ -150,7 +150,7 @@ func readInbounds(b *bundle.Bundle, db *sqlitex.DB, tls map[int64]json.RawMessag
 		}
 		if out := r.JSON("out_json"); out != nil && !isEmptyJSON(out) {
 			// s-ui's out_json is a client-side outbound override, which is
-			// exactly what Nexora calls clientConfig.
+			// exactly what NX calls clientConfig.
 			payload["clientConfig"] = out
 		}
 		raw, _ := json.Marshal(payload)
@@ -164,7 +164,7 @@ func readInbounds(b *bundle.Bundle, db *sqlitex.DB, tls map[int64]json.RawMessag
 			it.Set("tls", "yes")
 		}
 		if addrs := r.JSON("addrs"); addrs != nil && !isEmptyJSON(addrs) {
-			it.AddNote("this inbound advertised its own address list; Nexora advertises a node's address instead, so check the generated links")
+			it.AddNote("this inbound advertised its own address list; NX advertises a node's address instead, so check the generated links")
 		}
 		if res.Changed {
 			it.AddNote("%s", res.Note)
@@ -187,8 +187,8 @@ func readOutbounds(b *bundle.Bundle, db *sqlitex.DB, tags *normalize.Namer) {
 			_ = json.Unmarshal(raw, &cfg)
 		}
 		if convert.IsBuiltinDirect(r.Str("tag"), typ, cfg) {
-			// Routes name it by tag, and the tag is the same one Nexora's.
-			b.Note("the old panel's plain %q outbound is the one Nexora already puts on every node, so it was not created again; rules that named it use Nexora's", r.Str("tag"))
+			// Routes name it by tag, and the tag is the same one NX's.
+			b.Note("the old panel's plain %q outbound is the one NX already puts on every node, so it was not created again; rules that named it use NX's", r.Str("tag"))
 			continue
 		}
 		res := tags.Tag(r.Str("tag"), fmt.Sprintf("outbound-%d", id))
@@ -233,7 +233,7 @@ func readEndpoints(b *bundle.Bundle, db *sqlitex.DB, tags *normalize.Namer) {
 		}
 		it.Set("type", outType)
 		if typ == "warp" {
-			it.AddNote("s-ui's WARP endpoint becomes a plain wireguard endpoint; Nexora creates WARP profiles itself, so consider rebuilding it there")
+			it.AddNote("s-ui's WARP endpoint becomes a plain wireguard endpoint; NX creates WARP profiles itself, so consider rebuilding it there")
 		}
 		if res.Changed {
 			it.AddNote("%s", res.Note)
@@ -258,13 +258,13 @@ func readServices(b *bundle.Bundle, db *sqlitex.DB) {
 			Name: r.Str("tag"), SourceName: r.Str("tag"), Group: []string{"services (not supported)"},
 		}
 		it.Set("type", r.Str("type"))
-		it.Block("Nexora has no services pool; a %q service has to be rebuilt by hand if it is needed", r.Str("type"))
+		it.Block("NX has no services pool; a %q service has to be rebuilt by hand if it is needed", r.Str("type"))
 		b.Add(it)
 	}
 }
 
 // readBaseConfig turns s-ui's single `config` setting — log, dns, route and
-// experimental in one document — into a Nexora template, which is where those
+// experimental in one document — into an NX template, which is where those
 // blocks live. The template also carries the inbound selection, so applying it
 // reproduces what the s-ui node was running.
 func readBaseConfig(b *bundle.Bundle, settings map[string]string, inbounds map[int64]string) string {
@@ -279,7 +279,7 @@ func readBaseConfig(b *bundle.Bundle, settings map[string]string, inbounds map[i
 	}
 
 	// Routing an s-ui operator also ran on clients may match on the process,
-	// the app, the Wi-Fi network or a LAN neighbour; Nexora refuses those, so
+	// the app, the Wi-Fi network or a LAN neighbour; NX refuses those, so
 	// they are dropped here and the import names each one.
 	var dropped []string
 	if v, ok := cfg["route"]; ok && !isEmptyJSON(v) {
@@ -325,10 +325,10 @@ func readBaseConfig(b *bundle.Bundle, settings map[string]string, inbounds map[i
 		it.Set("inbounds", strconv.Itoa(len(ids)))
 	}
 	if len(dropped) > 0 {
-		it.AddNote("client-only options were dropped — Nexora nodes are servers and refuse them: %s", strings.Join(dropped, "; "))
+		it.AddNote("client-only options were dropped — NX nodes are servers and refuse them: %s", strings.Join(dropped, "; "))
 	}
 	if _, ok := cfg["experimental"]; ok {
-		it.AddNote("s-ui's `experimental` block was dropped — Nexora manages Clash API and cache itself")
+		it.AddNote("s-ui's `experimental` block was dropped — NX manages Clash API and cache itself")
 	}
 	it.Set("has routing", yesNo(payload["route"] != nil))
 	it.Set("has dns", yesNo(core["dns"] != nil))
@@ -336,7 +336,7 @@ func readBaseConfig(b *bundle.Bundle, settings map[string]string, inbounds map[i
 	return it.ID
 }
 
-// readAdmins carries s-ui's panel logins across as Nexora admins. Password
+// readAdmins carries s-ui's panel logins across as NX admins. Password
 // hashes cannot travel between panels, so each arrives with a generated one.
 func readAdmins(b *bundle.Bundle, db *sqlitex.DB) {
 	rows, err := db.Select("users", []string{"id", "username"}, "id")
@@ -413,7 +413,7 @@ func readClients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, i
 
 		if tplItem != "" {
 			if ids := inboundIDs(r.JSON("inbounds")); len(ids) > 0 {
-				// s-ui scopes a client to a set of inbounds; Nexora scopes to
+				// s-ui scopes a client to a set of inbounds; NX scopes to
 				// templates, and this bundle has exactly one.
 				c.TemplateItems = []string{tplItem}
 			}
@@ -428,7 +428,7 @@ func readClients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, i
 }
 
 // credentials collapses s-ui's per-protocol credential map into the one set
-// Nexora keeps, and names every protocol whose secret had to be discarded.
+// NX keeps, and names every protocol whose secret had to be discarded.
 func credentials(raw json.RawMessage) (uuid, password, flow, method string, conflicts []string) {
 	if raw == nil {
 		return

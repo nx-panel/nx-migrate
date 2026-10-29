@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/nexora-vpn/nexora-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/source"
 )
 
 // fixtureV37 adds what 3x-ui v3.7 changed to the base fixture: WireGuard peers
