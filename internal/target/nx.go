@@ -144,7 +144,20 @@ type Preflight struct {
 	Existing map[string][]string `json:"existing"`
 
 	Nodes []Node `json:"nodes"`
+
+	// Users is how many accounts the panel already has, and UsersKnown whether
+	// that could be read at all. It decides whether switching the nodes off for
+	// the run is the default: a node switched off in NX is handed an empty
+	// configuration, so on a panel that already serves accounts it disconnects
+	// every one of them until the import ends.
+	Users      int64 `json:"users"`
+	UsersKnown bool  `json:"usersKnown"`
 }
+
+// PauseByDefault reports whether the run should switch the nodes off unless
+// the operator says otherwise: only when the panel is known to serve nobody
+// yet, which is the first import into a fresh install.
+func (p Preflight) PauseByDefault() bool { return p.UsersKnown && p.Users == 0 }
 
 // Node is one node of the fleet, with the facts the import cares about.
 type Node struct {
@@ -203,6 +216,16 @@ func (c *Client) Check(ctx context.Context) (Preflight, error) {
 			continue
 		}
 		p.Existing[kind] = names
+	}
+
+	if names, ok := p.Existing["client"]; ok {
+		p.Users, p.UsersKnown = int64(len(names)), true
+	} else {
+		for _, u := range p.Licence {
+			if u.Resource == "user" {
+				p.Users, p.UsersKnown = u.Used, true
+			}
+		}
 	}
 
 	var nodes []Node

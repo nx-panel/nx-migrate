@@ -33,3 +33,30 @@ func TestDropClientOnly(t *testing.T) {
 		t.Errorf("a clean route was rewritten: %s %v", got, dropped)
 	}
 }
+
+// The panel also refuses a dial strategy on a rule's action, a client-only
+// condition inside an inline rule set, and a dial strategy on an outbound or
+// endpoint; each is stripped the way the panel would prune it.
+func TestDropClientOnlyOptionsAndDial(t *testing.T) {
+	route, dropped := DropClientOnlyRoute(json.RawMessage(`{"rules":[` +
+		`{"domain":["a"],"action":"route","outbound":"x","network_strategy":"hybrid","fallback_network_type":["cellular"]}],` +
+		`"rule_set":[{"type":"inline","tag":"i","rules":[{"wifi_ssid":["home"]},{"domain":["c"]}]}]}`))
+	for _, gone := range []string{"network_strategy", "fallback_network_type", "wifi_ssid"} {
+		if strings.Contains(string(route), gone) {
+			t.Errorf("%s survived: %s", gone, route)
+		}
+	}
+	for _, kept := range []string{`"domain":["a"]`, `"domain":["c"]`, `"outbound":"x"`} {
+		if !strings.Contains(string(route), kept) {
+			t.Errorf("%s went: %s", kept, route)
+		}
+	}
+	if len(dropped) != 3 {
+		t.Errorf("dropped = %v, want three entries", dropped)
+	}
+
+	cfg := map[string]any{"type": "direct", "network_strategy": "default", "network_type": []any{"wifi"}, "fallback_delay": "300ms"}
+	if got := DropClientOnlyDial(cfg); len(got) != 2 || cfg["fallback_delay"] == nil || cfg["network_strategy"] != nil {
+		t.Errorf("dropped = %v, left %v", got, cfg)
+	}
+}

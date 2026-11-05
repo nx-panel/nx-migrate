@@ -58,6 +58,9 @@ type XrayClient struct {
 	ResetDay        int
 	TrafficReset    string
 	TrafficResetDay int
+	// 3x-ui v3.9: ResetWeekday is the calendar-weekly renewal, Monday 1 to
+	// Sunday 7, with Reset and ResetDay both 0. Zero is "not weekly".
+	ResetWeekday int
 	// What 3x-ui keeps about the *person*: the Telegram id the panel's bot
 	// messages them on, and a free-text note. Both were read by nobody before
 	// NX had somewhere to put them.
@@ -88,13 +91,19 @@ func ProtocolFor(protocol string, stream Obj) (string, bool) {
 	case "mtproto":
 		return "mtproxy", true
 	case "hysteria":
-		// 3x-ui has no separate hysteria2 protocol: it is plain "hysteria" with
-		// streamSettings.version = 2, and the share link scheme follows the
-		// version, not the protocol name.
-		if num(stream["version"]) == 2 {
-			return "hysteria2", true
+		// 3x-ui and the x-ui line have no separate hysteria2 protocol: it is
+		// plain "hysteria", with the version in streamSettings.hysteriaSettings
+		// (an older shape kept it on streamSettings itself). Xray's hysteria
+		// is version 2 only and the panels default it to 2, so only an
+		// explicit 1 is the old protocol.
+		version := num(objOf(stream, "hysteriaSettings")["version"])
+		if version == 0 {
+			version = num(stream["version"])
 		}
-		return "hysteria", true
+		if version == 1 {
+			return "hysteria", true
+		}
+		return "hysteria2", true
 	case "wireguard", "amneziawg":
 		// Both are endpoints in sing-box, not inbounds. Handled separately.
 		return "", false
@@ -199,16 +208,17 @@ func clientsFrom(protocol string, settings Obj) []XrayClient {
 			continue
 		}
 		cl := XrayClient{
-			Email:    str(c["email"]),
-			UUID:     str(c["id"]),
-			Password: firstNonEmpty(str(c["password"]), str(c["auth"])),
-			Flow:     str(c["flow"]),
-			Method:   str(c["method"]),
-			SubID:    str(c["subId"]),
-			LimitIP:  int(num(c["limitIp"])),
-			ExpiryMS: int64(num(c["expiryTime"])),
-			Reset:    int(num(c["reset"])),
-			ResetDay: int(num(c["resetDay"])),
+			Email:        str(c["email"]),
+			UUID:         str(c["id"]),
+			Password:     firstNonEmpty(str(c["password"]), str(c["auth"])),
+			Flow:         str(c["flow"]),
+			Method:       str(c["method"]),
+			SubID:        str(c["subId"]),
+			LimitIP:      int(num(c["limitIp"])),
+			ExpiryMS:     int64(num(c["expiryTime"])),
+			Reset:        int(num(c["reset"])),
+			ResetDay:     int(num(c["resetDay"])),
+			ResetWeekday: int(num(c["resetWeekday"])),
 			// Written only when set: a plain "never" says nothing.
 			TrafficReset:    str(c["trafficReset"]),
 			TrafficResetDay: int(num(c["trafficResetDay"])),
@@ -340,13 +350,155 @@ func applyStream(out *XrayInbound, stream Obj) {
 		}
 		out.Config["transport"] = t
 	case "quic":
-		out.Notes = append(out.Notes,
-			"the QUIC transport was dropped — sing-box removed it; use TUIC or Hysteria2 instead")
+		// Created without it, the inbound would be plain TCP that none of its
+		// clients speak — the same reason an unknown transport blocks.
+		out.Blocked = "the QUIC transport is not carried (Xray removed it in v24.9 and NX does not serve it) — rebuild it in NX as TUIC or Hysteria2"
+		return
+	case "hysteria":
+		// 3x-ui's hysteria inbound names its own protocol as the network; it is
+		// not a transport layered on top, and hysteriaSettings is read with the
+		// protocol.
 	default:
-		out.Notes = append(out.Notes, fmt.Sprintf("unknown transport %q was dropped", network))
+		// The clients of an inbound speak its transport; one created without
+		// it is an inbound nobody can reach, which is worse than none. XDRIVE
+		// and MASQUE (3x-ui v3.10, x-ui v1.13, PasarGuard v5.5) are the ones
+		// that exist today.
+		out.Blocked = fmt.Sprintf("the %q transport has no sing-box equivalent, so this cannot be carried — nothing could connect through it without that transport; rebuild it in NX with a transport NX serves", network)
+		return
 	}
 
+	applyFinalMask(out, stream)
 	applyTLS(out, stream)
+}
+
+// applyFinalMask carries Xray's finalmask (3x-ui since 2026-06): the layer
+// that obfuscates the packets under the transport. A hysteria2 inbound keeps
+// its salamander obfuscation there — gecko when the mask carries a packet
+// size — which sing-box spells as the inbound's `obfs`. Without it every
+// client of the inbound fails its handshake, so dropping it silently is not an
+// option. Nothing else in a finalmask has a sing-box equivalent.
+func applyFinalMask(out *XrayInbound, stream Obj) {
+	fm := objOf(stream, "finalmask")
+	if fm == nil {
+		return
+	}
+	var other []string
+	if tcp, _ := fm["tcp"].([]any); len(tcp) > 0 {
+		for _, e := range tcp {
+			if m, ok := e.(Obj); ok {
+				other = append(other, "tcp "+str(m["type"]))
+			}
+		}
+	}
+	udp, _ := fm["udp"].([]any)
+	for _, e := range udp {
+		m, ok := e.(Obj)
+		if !ok {
+			continue
+		}
+		typ := strings.ToLower(str(m["type"]))
+		if typ == "mkcp-legacy" {
+			if kept := applyMkcpLegacy(out, objOf(m, "settings")); kept != "" {
+				other = append(other, kept)
+			}
+			continue
+		}
+		if typ != "salamander" || out.Type != "hysteria2" || out.Config["obfs"] != nil {
+			other = append(other, "udp "+typ)
+			continue
+		}
+		settings := objOf(m, "settings")
+		password := str(settings["password"])
+		if password == "" {
+			// sing-box refuses obfs without one, and so would the panel.
+			other = append(other, "udp salamander without a password")
+			continue
+		}
+		obfs := Obj{"type": "salamander", "password": password}
+		if lo, hi, ok := packetSize(settings["packetSize"]); ok {
+			obfs["type"] = "gecko"
+			obfs["min_packet_size"], obfs["max_packet_size"] = lo, hi
+			if hi > GeckoMaxPacketSize {
+				obfs["max_packet_size"] = GeckoMaxPacketSize
+				if lo > GeckoMaxPacketSize {
+					obfs["min_packet_size"] = GeckoMaxPacketSize
+				}
+				out.Notes = append(out.Notes, fmt.Sprintf(
+					"gecko's packet size %d–%d was capped at %d — a sing-box receiver cuts a larger chunk short and the handshake never completes; clients pick the new range up from their subscription",
+					lo, hi, GeckoMaxPacketSize))
+			}
+		}
+		out.Config["obfs"] = obfs
+	}
+	if len(other) > 0 {
+		out.Notes = append(out.Notes, fmt.Sprintf(
+			"the finalmask layer (%s) was dropped — sing-box has no equivalent, so clients of this inbound need their new link",
+			strings.Join(other, ", ")))
+	}
+}
+
+// mkcpHeaders maps finalmask's mkcp-legacy header names onto the node's mKCP
+// header_type, which keeps Xray's pre-finalmask spelling. dns has none there.
+var mkcpHeaders = map[string]string{
+	"dtls": "dtls", "srtp": "srtp", "utp": "utp", "wechat": "wechat-video", "wireguard": "wireguard",
+}
+
+// applyMkcpLegacy carries one mkcp-legacy mask onto an mKCP transport. Xray
+// moved kcpSettings' header and seed into finalmask (Xray 26, 3x-ui v3.9):
+// one entry with a header is the header disguise, one without is the seed
+// (AES-128-GCM when it has a value, the original obfuscation when empty —
+// what the node's mKCP does without a seed). Dropped, the seed leaves every
+// packet undecryptable. It answers what it could not carry, or "".
+func applyMkcpLegacy(out *XrayInbound, settings Obj) string {
+	t, _ := out.Config["transport"].(Obj)
+	if t == nil || t["type"] != "mkcp" {
+		return "udp mkcp-legacy"
+	}
+	header := strings.ToLower(str(settings["header"]))
+	value := str(settings["value"])
+	if header == "" {
+		if value != "" {
+			t["seed"] = value
+		}
+		return ""
+	}
+	ht, ok := mkcpHeaders[header]
+	if !ok {
+		return "udp mkcp-legacy " + header + " header"
+	}
+	t["header_type"] = ht
+	return ""
+}
+
+// GeckoMaxPacketSize is the panel's cap on gecko's packet size: quic-go's
+// 1452-byte receive buffer on a sing-box node.
+const GeckoMaxPacketSize = 1452
+
+// packetSize reads finalmask's packetSize, "512-1200" or one number, as the
+// gecko range. A value it cannot read is not gecko.
+func packetSize(v any) (lo, hi int, ok bool) {
+	var s string
+	switch x := v.(type) {
+	case string:
+		s = strings.TrimSpace(x)
+	case float64:
+		s = strconv.Itoa(int(x))
+	default:
+		return 0, 0, false
+	}
+	if s == "" {
+		return 0, 0, false
+	}
+	a, b, found := strings.Cut(s, "-")
+	if !found {
+		b = a
+	}
+	lo, err1 := strconv.Atoi(strings.TrimSpace(a))
+	hi, err2 := strconv.Atoi(strings.TrimSpace(b))
+	if err1 != nil || err2 != nil || lo <= 0 || hi < lo {
+		return 0, 0, false
+	}
+	return lo, hi, true
 }
 
 // applyTLS converts tlsSettings / realitySettings.
@@ -537,6 +689,11 @@ func Outbound(o Obj) (typ string, config Obj, notes []string, ok bool) {
 		// The chained outbound's own stream settings ride along.
 		stub := XrayInbound{Config: cfg}
 		applyStream(&stub, objOf(o, "streamSettings"))
+		if stub.Blocked != "" {
+			// Created without its transport, the outbound would dial a server
+			// that speaks something else and fail every connection routed to it.
+			return "", nil, append(stub.Notes, stub.Blocked), false
+		}
 		delete(cfg, "listen")
 		return protocol, cfg, stub.Notes, true
 	case "wireguard":

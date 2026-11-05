@@ -467,6 +467,9 @@ func (s *Server) handlePlan(w http.ResponseWriter, r *http.Request) {
 		"added":    addedNames,
 		"warnings": warnings,
 		"nodes":    pre.Nodes,
+		// The pause checkbox's default, and the accounts it would disconnect.
+		"pauseDefault": pre.PauseByDefault(),
+		"users":        pre.Users,
 	})
 }
 
@@ -553,7 +556,7 @@ func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "a run is already in progress"})
 		return
 	}
-	b, c := s.bundle, s.client
+	b, c, pre := s.bundle, s.client, s.pre
 	if b == nil || c == nil {
 		s.mu.Unlock()
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "read a source and connect to NX first"})
@@ -581,7 +584,10 @@ func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
 	s.running, s.cancel, s.events, s.result = true, cancel, nil, nil
 	s.mu.Unlock()
 
-	opt := apply.Options{PauseNodes: true}
+	// Unsaid, the nodes are switched off only on a panel that serves nobody
+	// yet: switching one off in NX empties it, which on a live panel is an
+	// outage for every account it carries.
+	opt := apply.Options{PauseNodes: pre.PauseByDefault()}
 	if req.PauseNodes != nil {
 		opt.PauseNodes = *req.PauseNodes
 	}

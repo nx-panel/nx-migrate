@@ -27,7 +27,29 @@ var (
 		"default_network_strategy", "default_network_type",
 		"default_fallback_network_type", "default_fallback_delay",
 	}
+	// Options of a route rule's action rather than conditions: a dial
+	// strategy only a platform interface follows. The rule keeps its match and
+	// loses only these, as the panel prunes them.
+	clientOnlyRuleActionKeys = []string{"network_strategy", "fallback_network_type"}
+	// Dial options of an outbound or endpoint, which the panel refuses on
+	// save. fallback_delay is not one: it is also a server's own IPv4/IPv6
+	// race delay.
+	clientOnlyDialKeys = []string{"network_strategy", "network_type", "fallback_network_type"}
 )
+
+// DropClientOnlyDial removes the client-only dial options from one outbound
+// or endpoint document and names what went. The panel refuses to save an item
+// carrying one.
+func DropClientOnlyDial(cfg map[string]any) []string {
+	var dropped []string
+	for _, key := range clientOnlyDialKeys {
+		if _, ok := cfg[key]; ok {
+			delete(cfg, key)
+			dropped = append(dropped, key)
+		}
+	}
+	return dropped
+}
 
 // DropClientOnlyRoute removes the client-only options from a sing-box route
 // block and reports what went. A rule naming a client-only condition anywhere
@@ -56,15 +78,38 @@ func dropClientOnly(raw json.RawMessage, name string, blockKeys []string, server
 		}
 	}
 	if rules, ok := block["rules"].([]any); ok {
-		kept := make([]any, 0, len(rules))
-		for i, rule := range rules {
-			if keys := clientOnlyIn(rule); len(keys) > 0 {
-				dropped = append(dropped, fmt.Sprintf("%s.rules[%d] (%s)", name, i, strings.Join(keys, ", ")))
-				continue
+		kept, gone := dropClientOnlyRules(name+".rules", rules)
+		dropped = append(dropped, gone...)
+		if name == "route" {
+			for i, rule := range kept {
+				obj, ok := rule.(map[string]any)
+				if !ok {
+					continue
+				}
+				for _, key := range clientOnlyRuleActionKeys {
+					if _, has := obj[key]; has {
+						delete(obj, key)
+						dropped = append(dropped, fmt.Sprintf("%s.rules[%d].%s", name, i, key))
+					}
+				}
 			}
-			kept = append(kept, rule)
 		}
 		block["rules"] = kept
+	}
+	// An inline rule set carries the same match conditions, and the panel
+	// refuses a client-only one there too.
+	if sets, ok := block["rule_set"].([]any); ok && name == "route" {
+		for i, set := range sets {
+			obj, ok := set.(map[string]any)
+			if !ok {
+				continue
+			}
+			if rules, ok := obj["rules"].([]any); ok {
+				kept, gone := dropClientOnlyRules(fmt.Sprintf("%s.rule_set[%d].rules", name, i), rules)
+				obj["rules"] = kept
+				dropped = append(dropped, gone...)
+			}
+		}
 	}
 	if servers {
 		if list, ok := block["servers"].([]any); ok {
@@ -86,6 +131,20 @@ func dropClientOnly(raw json.RawMessage, name string, blockKeys []string, server
 		return raw, nil
 	}
 	return out, dropped
+}
+
+// dropClientOnlyRules keeps the rules that name no client-only condition.
+// A rule naming one goes whole: stripping only the condition would widen it.
+func dropClientOnlyRules(path string, rules []any) (kept []any, dropped []string) {
+	kept = make([]any, 0, len(rules))
+	for i, rule := range rules {
+		if keys := clientOnlyIn(rule); len(keys) > 0 {
+			dropped = append(dropped, fmt.Sprintf("%s[%d] (%s)", path, i, strings.Join(keys, ", ")))
+			continue
+		}
+		kept = append(kept, rule)
+	}
+	return kept, dropped
 }
 
 // clientOnlyIn lists the client-only conditions a rule sets, nested logical

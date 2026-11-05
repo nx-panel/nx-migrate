@@ -110,7 +110,7 @@ func readTLS(db *sqlitex.DB) map[int64]json.RawMessage {
 // which is how clients and the template find them again.
 func readInbounds(b *bundle.Bundle, db *sqlitex.DB, tls map[int64]json.RawMessage, tags *normalize.Namer) map[int64]string {
 	index := map[int64]string{}
-	rows, err := db.Select("inbounds", []string{"id", "type", "tag", "tls_id", "addrs", "out_json", "options"}, "id")
+	rows, err := db.Select("inbounds", []string{"id", "type", "tag", "tls_id", "addrs", "out_json", "options", "enable"}, "id")
 	if err != nil {
 		b.Note("no inbounds were read: %v", err)
 		return index
@@ -157,6 +157,12 @@ func readInbounds(b *bundle.Bundle, db *sqlitex.DB, tls map[int64]json.RawMessag
 		it.Payload = raw
 
 		it.Set("type", typ)
+		// s-ui gained a switch per inbound after v1.6.7; a database from
+		// before it has no column, and every inbound there was live.
+		if r.Has("enable") && !r.Bool("enable") {
+			it.Set("enabled in s-ui", "no")
+			it.AddNote("%s", convert.DisabledInboundNote("s-ui"))
+		}
 		if p, ok := cfg["listen_port"]; ok {
 			it.Set("port", fmt.Sprint(p))
 		}
@@ -193,6 +199,7 @@ func readOutbounds(b *bundle.Bundle, db *sqlitex.DB, tags *normalize.Namer) {
 		}
 		res := tags.Tag(r.Str("tag"), fmt.Sprintf("outbound-%d", id))
 		cfg["type"], cfg["tag"] = typ, res.Name
+		dialDropped := convert.DropClientOnlyDial(cfg)
 
 		payload, _ := json.Marshal(map[string]any{"tag": res.Name, "type": typ, "config": cfg})
 		it := bundle.Item{
@@ -203,7 +210,15 @@ func readOutbounds(b *bundle.Bundle, db *sqlitex.DB, tags *normalize.Namer) {
 		if res.Changed {
 			it.AddNote("%s", res.Note)
 		}
+		noteDialDropped(&it, dialDropped)
 		b.Add(it)
+	}
+}
+
+// noteDialDropped says which client-only dial options an item lost.
+func noteDialDropped(it *bundle.Item, dropped []string) {
+	if len(dropped) > 0 {
+		it.AddNote("client-only dial options were dropped — they need the platform interface of an Android or Apple client, and NX refuses them on a node: %s", strings.Join(dropped, ", "))
 	}
 }
 
@@ -225,6 +240,7 @@ func readEndpoints(b *bundle.Bundle, db *sqlitex.DB, tags *normalize.Namer) {
 			_ = json.Unmarshal(raw, &cfg)
 		}
 		cfg["type"], cfg["tag"] = outType, res.Name
+		dialDropped := convert.DropClientOnlyDial(cfg)
 
 		payload, _ := json.Marshal(map[string]any{"tag": res.Name, "type": outType, "config": cfg})
 		it := bundle.Item{
@@ -232,6 +248,7 @@ func readEndpoints(b *bundle.Bundle, db *sqlitex.DB, tags *normalize.Namer) {
 			Name: res.Name, SourceName: r.Str("tag"), Group: []string{outType}, Payload: payload,
 		}
 		it.Set("type", outType)
+		noteDialDropped(&it, dialDropped)
 		if typ == "warp" {
 			it.AddNote("s-ui's WARP endpoint becomes a plain wireguard endpoint; NX creates WARP profiles itself, so consider rebuilding it there")
 		}
@@ -375,6 +392,21 @@ func readClients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, i
 	}
 	names := normalize.NewNamer()
 	subBase := subscriptionBase(settings)
+	tagOf := map[string]string{}
+	for _, it := range b.Items {
+		tagOf[it.ID] = it.Name
+	}
+	// Measured against the inbounds that carry anybody, as in the Xray
+	// panels: a direct or tun inbound serves no client and must not put a
+	// filter on everyone.
+	var allTags []string
+	for _, r := range rows {
+		for _, id := range inboundIDs(r.JSON("inbounds")) {
+			if item, ok := inbounds[id]; ok {
+				allTags = append(allTags, tagOf[item])
+			}
+		}
+	}
 
 	for _, r := range rows {
 		id := r.Str("id")
@@ -414,8 +446,16 @@ func readClients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, i
 		if tplItem != "" {
 			if ids := inboundIDs(r.JSON("inbounds")); len(ids) > 0 {
 				// s-ui scopes a client to a set of inbounds; NX scopes to
-				// templates, and this bundle has exactly one.
+				// templates, and this bundle has exactly one, and then narrows
+				// within it by the account's config filter.
 				c.TemplateItems = []string{tplItem}
+				mine := make([]string, 0, len(ids))
+				for _, id := range ids {
+					if item, ok := inbounds[id]; ok {
+						mine = append(mine, tagOf[item])
+					}
+				}
+				convert.LimitToInbounds(&c, mine, allTags)
 			}
 		}
 

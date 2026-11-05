@@ -85,7 +85,7 @@ Run it with no arguments. It opens a page on this machine and walks you through:
                           Marzban, PasarGuard, Hiddify, Marzneshin or
                           Remnawave over their own API
     2. review & select    everything it converted, in nested groups you tick
-    3. connect NX     address plus a login or an API token
+    3. connect NX         address plus a login or an API token
     4. preview            what will be written, and what the licence allows
     5. transfer           written through NX's API, then the page closes
                           the program

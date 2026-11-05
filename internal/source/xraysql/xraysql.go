@@ -54,6 +54,8 @@ type Account struct {
 	ExpiryMS int64
 	Reset    int
 	ResetDay int
+	// ResetWeekday is 3x-ui's calendar-weekly renewal, Monday 1 to Sunday 7.
+	ResetWeekday int
 	// TrafficReset/TrafficResetDay are 3x-ui's per-client traffic cycle.
 	TrafficReset    string
 	TrafficResetDay int
@@ -140,6 +142,9 @@ func (a Accounts) Merge(clients []convert.XrayClient, protocol, inboundItem stri
 		}
 		if c.ResetDay > 0 && acc.ResetDay == 0 {
 			acc.ResetDay = c.ResetDay
+		}
+		if c.ResetWeekday > 0 && acc.ResetWeekday == 0 {
+			acc.ResetWeekday = c.ResetWeekday
 		}
 		if t := strings.ToLower(strings.TrimSpace(c.TrafficReset)); t != "" && t != "never" && acc.TrafficReset == "" {
 			acc.TrafficReset, acc.TrafficResetDay = t, c.TrafficResetDay
@@ -246,6 +251,7 @@ func Inbounds(b *bundle.Bundle, db *sqlitex.DB, p Panel, tags *normalize.Namer, 
 		it.Set("clients", strconv.Itoa(len(conv.Clients)))
 		if !r.Bool("enable") {
 			it.Set("enabled in "+p.Name, "no")
+			it.AddNote("%s", convert.DisabledInboundNote(p.Name))
 		}
 
 		if conv.Blocked != "" {
@@ -385,7 +391,7 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 	traffic := map[string]sqlitex.Row{}
 	rows, err := db.Select("client_traffics", []string{
 		"id", "inbound_id", "enable", "email", "up", "down", "expiry_time",
-		"total", "reset", "reset_day", "last_online",
+		"total", "reset", "reset_day", "reset_weekday", "last_online",
 	}, "id")
 	if err == nil {
 		for _, r := range rows {
@@ -398,6 +404,16 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 
 	names := normalize.NewNamer()
 	subBase := SubscriptionBase(settings)
+	// The inbounds that carry anybody are what an account is measured
+	// against: one that serves no client in the old panel (a SOCKS inbound
+	// with its own accounts, say) would otherwise put a filter on everyone.
+	tagOf := ItemNames(b)
+	var allTags []string
+	for _, a := range accounts.Ordered() {
+		for _, id := range a.Inbounds {
+			allTags = append(allTags, tagOf[id])
+		}
+	}
 
 	peers := 0
 	for _, a := range accounts.Ordered() {
@@ -447,12 +463,15 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 			c.Expiry = expiry / 1000
 		}
 
-		reset, resetDay := a.Reset, a.ResetDay
+		reset, resetDay, weekday := a.Reset, a.ResetDay, a.ResetWeekday
 		if n := int(t.Int("reset")); n > 0 {
 			reset = n
 		}
 		if n := int(t.Int("reset_day")); n > 0 {
 			resetDay = n
+		}
+		if n := int(t.Int("reset_weekday")); n > 0 {
+			weekday = n
 		}
 		var resetNote string
 		switch {
@@ -467,6 +486,11 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 			// Since 3x-ui v3.7 a renewal day turns the interval into a
 			// calendar renewal on that day of the month.
 			convert.ApplyResetStrategy(&c, "monthly", resetDay)
+		case weekday >= 1 && weekday <= 7:
+			// Since v3.9 a weekday is a calendar renewal every week, which
+			// 3x-ui refuses beside a day or an interval. Its Monday 1 …
+			// Sunday 7 is NX's Sunday 0 … Saturday 6 modulo 7.
+			c.AutoReset, c.ResetPeriod, c.ResetStartDay = true, "weekly", weekday%7
 		case reset > 0:
 			c.AutoReset, c.ResetDays = true, reset
 		}
@@ -485,6 +509,11 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 		}
 		if templateItem != "" && len(a.Inbounds) > 0 {
 			c.TemplateItems = []string{templateItem}
+			mine := make([]string, 0, len(a.Inbounds))
+			for _, id := range a.Inbounds {
+				mine = append(mine, tagOf[id])
+			}
+			convert.LimitToInbounds(&c, mine, allTags)
 		}
 
 		it := convert.ClientItem(c, names)
@@ -506,6 +535,16 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 	if peers > 0 {
 		b.Note("%d WireGuard peer(s) arrive on their endpoint, as written, rather than as accounts", peers)
 	}
+}
+
+// ItemNames maps every bundle item id to its NX name (an inbound's is its
+// tag), for the readers that hold ids and need what the panel will call them.
+func ItemNames(b *bundle.Bundle) map[string]string {
+	out := make(map[string]string, len(b.Items))
+	for _, it := range b.Items {
+		out[it.ID] = it.Name
+	}
+	return out
 }
 
 // SubscriptionBase reconstructs the old subscription address so the review

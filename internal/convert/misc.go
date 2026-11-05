@@ -25,3 +25,9 @@ func RandomPassword() string {
 	s = strings.NewReplacer("-", "x", "_", "y").Replace(s)
 	return s
 }
+
+// DisabledInboundNote is said on an inbound its old panel had switched off.
+// NX has no such switch: an inbound serves wherever a template selects it.
+func DisabledInboundNote(panel string) string {
+	return "this inbound was switched off in " + panel + "; NX has no off switch for an inbound, so it serves on every node whose template selects it — untick it here if it should stay off"
+}

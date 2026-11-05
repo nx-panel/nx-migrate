@@ -201,10 +201,11 @@
   <div id="plan"></div>
 
   <label class="check big">
-    <input type="checkbox" id="pause-nodes" checked>
+    <input type="checkbox" id="pause-nodes">
     <span data-i18n="s4.pause">Switch the nodes off during the transfer (and sync them once at the end)</span>
   </label>
-  <p class="hint" data-i18n="s4.pausewhy">NX has no bulk create: every new account is pushed to each of its nodes. With the nodes paused, 20,000 accounts means zero pushes during the run and one sync at the end.</p>
+  <p class="hint" data-i18n="s4.pausewhy">NX has no bulk create: every new account is pushed to each of its nodes. With the nodes off, 20,000 accounts means zero pushes during the run and one sync at the end. A node switched off in NX serves nobody: it is handed an empty configuration until it is switched back on, so this is on by default only for a panel with no accounts yet.</p>
+  <div class="warn-box" id="pause-live" hidden></div>
 
   <div class="field" id="confirm-box" hidden>
     <label for="confirm-code" data-i18n="s4.code">This account signed in with a second factor and the selection creates admins, which the panel confirms with a fresh code. Enter the current code from the authenticator app.</label>

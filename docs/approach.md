@@ -601,10 +601,16 @@ silently beat the password they just typed, and `source.Read` refuses a
 credential the panel never had (the classic x-ui line has no API tokens;
 Hiddify has nothing but).
 
-**The node-pause protocol of §4 is implemented and is the default.** The applier
-disables every enabled node, runs, then re-enables and syncs each one — in a
-`defer`, so an operator's fleet comes back even when the run fails or is
-cancelled.
+**The node-pause protocol of §4 is implemented, and is the default only on a
+panel with no accounts yet** (2026-11-05). The applier disables every enabled
+node, runs, then re-enables and syncs each one — in a `defer`, so an operator's
+fleet comes back even when the run fails or is cancelled. Since the panel's
+node rework (2026-10-08) a node switched off is handed the empty configuration
+and serves nobody, so on a live panel the pause is an outage for every account
+it carries: `target.Preflight.PauseByDefault` reads the panel's account count
+(the users list, else the licence's `user` usage), the wizard ticks the box only
+at zero, and a ticked box on a live panel says how many accounts it would
+disconnect.
 
 ### Tested
 
@@ -634,6 +640,64 @@ the whole wizard end to end over HTTP, including its two access guards.
    `internal/web/assets/i18n.js`; a new string added to the markup shows in
    English everywhere until it is translated, which is the right failure but
    still a failure.
+
+### Re-sync 2026-11-05 (panel 0.1.1, upstreams to early November)
+
+What changed, so it is not re-derived:
+
+- **Inbound membership travels as a config filter.** 3x-ui, the x-ui line and
+  s-ui put a client on chosen inbounds; the panel's `users.config_filter`
+  (2026-10-28) expresses exactly that. `convert.LimitToInbounds` measures an
+  account against the inbounds that carry *any* client in the bundle — not
+  every inbound, or a SOCKS/direct/tun inbound would put a filter on everyone
+  — and an account on all of them gets none. The rule is `tag in [...]`, by NX
+  tag; past the panel's 64 values per rule the account keeps every inbound and
+  the row says so. Marzban and PasarGuard are not done yet.
+- **Client-only options the panel refuses on save** (decision 29) are stripped
+  in full now: a rule action's `network_strategy` / `fallback_network_type`,
+  conditions inside an inline `rule_set`, and the dial options
+  `network_strategy` / `network_type` / `fallback_network_type` on an s-ui
+  outbound or endpoint. `fallback_delay` stays: it is also a server's option.
+- **3x-ui v3.9 calendar-weekly renewal** (`resetWeekday`, Monday 1 … Sunday 7,
+  on the client and on `client_traffics.reset_weekday`) is NX's `weekly`
+  period, day `weekday % 7`. It fell through every case before and arrived as
+  no renewal. *Panel trap found on the walk:* `users.reset_start_day` has
+  `default:1`, so GORM leaves a 0 out of the INSERT and a Sunday anchor is
+  stored as Monday. Fixed in the panel (`fix-sunday-reset-anchor`, d9bc8f9),
+  not worked around here: a panel without that fix still files a Sunday
+  renewal on Monday.
+- **Hysteria in today's 3x-ui / x-ui** names `hysteria` as its network and
+  keeps the version under `hysteriaSettings`; Xray's hysteria is version 2
+  only, so only an explicit 1 is the old protocol (it used to become sing-box
+  `hysteria` v1). Its obfuscation lives in `streamSettings.finalmask.udp`: a
+  `salamander` mask is the inbound's `obfs`, `gecko` when it carries a
+  `packetSize` (`"512-1200"` or one number), capped at 1452 like the panel.
+  Every other finalmask entry is dropped with a note.
+- **mKCP's seed and header moved into finalmask too** (Xray 26): an
+  `mkcp-legacy` mask without a header is the seed (AES-128-GCM when it has a
+  value), one with a header is the disguise. Both land on the node's mKCP as
+  `seed` / `header_type` (`wechat` → `wechat-video`); the `dns` header has no
+  node equivalent and is said.
+- **An unknown transport blocks the inbound** instead of arriving as plain TCP
+  nobody could reach: XDRIVE and MASQUE (3x-ui v3.10, x-ui v1.13, PasarGuard
+  v5.5) are the ones that exist. QUIC (removed from Xray in v24.9) blocks the
+  same way now, and a chained outbound in either is refused rather than
+  created bare.
+- **s-ui's per-inbound switch** (`inbounds.enable`, after v1.6.7) and the Xray
+  panels' are said on the row: NX has no off switch for an inbound.
+
+Walked on a throwaway panel 0.1.1 built from source: a 3x-ui database with all
+of the above, read and applied through the wizard's HTTP API, 15 of 15 items
+created; the panel stored the filters, the weekly periods and the gecko
+`obfs` as sent (bar the Sunday anchor above), and the pause defaulted on at
+zero accounts and off at five.
+
+Known and left for later (owner, 2026-11-05: scope A): PasarGuard's Xray
+WireGuard inbounds (blocked with a misleading "listed under Endpoints"),
+x-ui's Lua routing script, s-ui's multi-user snell, MASQUE client secrets,
+3x-ui `resetMax` / `excludeFromSub`, Hiddify's extra fields, the licence
+warning still naming the resources the panel no longer caps, and the extra
+sync after a node is switched back on (the panel's switch already syncs).
 
 ### Verified against a real panel
 

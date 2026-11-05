@@ -3,6 +3,7 @@ package convert
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -91,6 +92,44 @@ type Client struct {
 	// TemplateItems are the bundle ids of the templates the account should be
 	// provisioned on. Empty means every template.
 	TemplateItems []string
+	// InboundTags narrows the account to these inbounds of its templates, by
+	// NX tag, as the old panel had it: 3x-ui and s-ui put each client on
+	// chosen inbounds, and NX's equivalent is the account's config filter (a
+	// `tag in …` rule). Empty means every inbound. Set it with LimitToInbounds.
+	InboundTags []string
+}
+
+// MaxFilterValues is the panel's cap on the values of one config-filter rule.
+const MaxFilterValues = 64
+
+// LimitToInbounds records the inbounds an account was on, given every inbound
+// its template carries. An account on all of them needs no filter, and gets
+// none: a filter is a restriction, and one that names everything would only
+// stop the account from reaching an inbound added later.
+func LimitToInbounds(c *Client, mine, all []string) {
+	have := map[string]bool{}
+	var tags []string
+	for _, t := range mine {
+		if t != "" && !have[t] {
+			have[t] = true
+			tags = append(tags, t)
+		}
+	}
+	if len(tags) == 0 {
+		return
+	}
+	everything := true
+	for _, t := range all {
+		if !have[t] {
+			everything = false
+			break
+		}
+	}
+	if everything {
+		return
+	}
+	sort.Strings(tags)
+	c.InboundTags = tags
 }
 
 // ClientItem turns a Client into the bundle item that will be POSTed to
@@ -148,6 +187,18 @@ func ClientItem(c Client, namer *normalize.Namer) bundle.Item {
 		payload["allTemplates"] = false
 		payload["templateIds"] = []uint{}
 	}
+	filterNote := ""
+	switch n := len(c.InboundTags); {
+	case n > MaxFilterValues:
+		filterNote = fmt.Sprintf("the old panel had this account on %d of its inbounds, more than the %d one config filter can name, so it is on every inbound of its template — narrow it in NX if that matters", n, MaxFilterValues)
+	case n > 0:
+		// Keyed by tag, which is what the panel stores and matches (an inbound
+		// tag is unique there). A tag naming an inbound the template does not
+		// carry is ignored by the panel, never refused.
+		payload["configFilter"] = map[string]any{
+			"inbounds": []map[string]any{{"field": "tag", "op": "in", "values": c.InboundTags}},
+		}
+	}
 	raw, _ := json.Marshal(payload)
 
 	it := bundle.Item{
@@ -182,8 +233,14 @@ func ClientItem(c Client, namer *normalize.Namer) bundle.Item {
 		it.Set("sub id", c.SubID)
 	}
 
+	if n := len(c.InboundTags); n > 0 && n <= MaxFilterValues {
+		it.Set("limited to", strings.Join(c.InboundTags, ", "))
+	}
 	if res.Changed {
 		it.AddNote("%s", res.Note)
+	}
+	if filterNote != "" {
+		it.AddNote("%s", filterNote)
 	}
 	if len(c.Conflicts) > 0 {
 		it.AddNote("NX keeps one credential set per account; these protocols had their own and will change for this user: %s",

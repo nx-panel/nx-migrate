@@ -264,6 +264,11 @@ func TestFullWizardFlow(t *testing.T) {
 	if out["total"].(float64) == 0 {
 		t.Fatal("the plan selected nothing")
 	}
+	// A panel with no accounts yet is the one place switching the nodes off
+	// disconnects nobody, so it is the default there.
+	if out["pauseDefault"] != true || out["users"] != float64(0) {
+		t.Errorf("pauseDefault = %v, users = %v on an empty panel", out["pauseDefault"], out["users"])
+	}
 
 	// 6. apply
 	code, out = call(t, ts, http.MethodPost, "/api/apply",

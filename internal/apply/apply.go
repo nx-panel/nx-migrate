@@ -55,7 +55,10 @@ type Event struct {
 // Options tunes one run.
 type Options struct {
 	// PauseNodes disables every node for the duration and syncs them at the
-	// end. On by default, and it is what makes a large import finish.
+	// end, which is what makes a large import finish. A node switched off in
+	// NX is handed an empty configuration and serves nobody, so the wizard
+	// turns this on by default only for a panel with no accounts yet
+	// (target.Preflight.PauseByDefault).
 	PauseNodes bool `json:"pauseNodes"`
 }
 
@@ -286,14 +289,14 @@ func pauseNodes(ctx context.Context, c *target.Client, opt Options, res *Result,
 		}
 		if err := c.SetNodeEnabled(ctx, n.ID, false); err != nil {
 			res.Notes = append(res.Notes,
-				fmt.Sprintf("node %q could not be paused (%v), so it received every account as it was created", n.Name, err))
+				fmt.Sprintf("node %q could not be switched off (%v), so it received every account as it was created", n.Name, err))
 			continue
 		}
 		paused = append(paused, n)
 	}
 	if len(paused) > 0 {
 		send(Event{Phase: "nodes paused", Status: StatusCreated,
-			Message: fmt.Sprintf("%d node(s) were switched off so the import does not push to the fleet once per account; they are switched back on and synced at the end", len(paused))})
+			Message: fmt.Sprintf("%d node(s) were switched off so the import does not push to the fleet once per account; they serve nobody until they are switched back on and synced at the end", len(paused))})
 	}
 	return paused
 }

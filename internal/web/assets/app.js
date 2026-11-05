@@ -90,7 +90,10 @@ function applyLang() {
   renderSources();
   if (picked) describeSource();
   if (tree.length) renderTree();
-  if (lastPreflight) renderPreflight(lastPreflight);
+  if (lastPreflight) {
+    renderPreflight(lastPreflight);
+    renderPauseWarning();
+  }
   if (lastResult) renderResult(lastResult);
 }
 
@@ -610,6 +613,12 @@ $("#target-form").onsubmit = async (e) => {
     });
     lastPreflight = data;
     renderPreflight(data);
+    // Set once per connection, so a choice made on the plan step survives a
+    // trip back to the selection. A node switched off in NX is emptied, so
+    // the default is on only for a panel that serves nobody yet.
+    const pre = data.preflight;
+    $("#pause-nodes").checked = !!pre.usersKnown && pre.users === 0;
+    renderPauseWarning();
     goto(4);
   } catch (err) {
     $("#conn-error").textContent = err.message;
@@ -642,6 +651,16 @@ function renderPreflight(data) {
 }
 
 /* ── step 4: the plan ──────────────────────────────────────────────── */
+
+// The accounts a pause would disconnect, said while the box is ticked.
+function renderPauseWarning() {
+  const box = $("#pause-live");
+  const p = lastPreflight && lastPreflight.preflight;
+  const users = p && p.users > 0 ? p.users : 0;
+  box.textContent = users ? t("s4.live", { n: users }) : "";
+  box.hidden = !users || !$("#pause-nodes").checked;
+}
+$("#pause-nodes").onchange = renderPauseWarning;
 
 async function refreshPlan() {
   const box = $("#plan");
