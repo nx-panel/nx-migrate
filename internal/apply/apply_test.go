@@ -283,13 +283,17 @@ func TestNodesArePausedAndResumed(t *testing.T) {
 	ops := strings.Join(panel.nodeOps, " ")
 	panel.mu.Unlock()
 
-	// Node 1 was enabled, so it is paused, re-enabled and synced. Node 2 was
+	// Node 1 was enabled, so it is paused and re-enabled — and not synced by
+	// the tool, since the panel syncs a node it switches on. Node 2 was
 	// already off and must be left alone, and so must node 3, which its usage
 	// limit switched off.
-	for _, want := range []string{"1:enabled=false", "1:enabled=true", "1:sync"} {
+	for _, want := range []string{"1:enabled=false", "1:enabled=true"} {
 		if !strings.Contains(ops, want) {
 			t.Errorf("node operations %q missing %q", ops, want)
 		}
+	}
+	if strings.Contains(ops, ":sync") {
+		t.Errorf("the panel syncs a node it switches on; a second push is redundant: %q", ops)
 	}
 	if strings.Contains(ops, "2:") {
 		t.Errorf("a node that was already disabled must not be touched: %q", ops)

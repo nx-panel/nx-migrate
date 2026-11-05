@@ -279,3 +279,34 @@ func mentions(it bundle.Item, sub string) bool {
 	}
 	return false
 }
+
+// x-ui v1.14+ can route (and resolve) through a Lua script. With a routing
+// script the panel stops applying its routing_rules table, so those rows were
+// not in force and must not arrive as if they were.
+func TestLuaRoutingScriptReplacesTheRules(t *testing.T) {
+	path := fixture(t, true)
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tpl := `{"dns":{"servers":["8.8.8.8"],"script":"dns.lua"},
+		"routing":{"script":"/etc/x-ui/route.lua","balancers":[{"tag":"b","selector":["direct"]}]}}`
+	if _, err := db.Exec(`UPDATE settings SET value = ? WHERE key = 'xrayTemplateConfig'`, tpl); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	b, err := source.Read(context.Background(), "x-ui", source.Options{Channel: source.ChannelFile, Path: path})
+	if err != nil {
+		t.Fatal(err)
+	}
+	it := find(t, b, "template:x-ui")
+	if route, _ := payload(t, it)["route"].(map[string]any); route != nil {
+		if rules, _ := route["rules"].([]any); len(rules) > 0 {
+			t.Errorf("the saved rules were not in force and must not be carried: %v", rules)
+		}
+	}
+	notes := strings.Join(it.Notes, " ")
+	if !strings.Contains(notes, "Lua script /etc/x-ui/route.lua") || !strings.Contains(notes, "Lua script dns.lua") {
+		t.Errorf("notes = %v", it.Notes)
+	}
+}

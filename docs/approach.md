@@ -692,12 +692,71 @@ created; the panel stored the filters, the weekly periods and the gecko
 `obfs` as sent (bar the Sunday anchor above), and the pause defaulted on at
 zero accounts and off at five.
 
-Known and left for later (owner, 2026-11-05: scope A): PasarGuard's Xray
-WireGuard inbounds (blocked with a misleading "listed under Endpoints"),
-x-ui's Lua routing script, s-ui's multi-user snell, MASQUE client secrets,
-3x-ui `resetMax` / `excludeFromSub`, Hiddify's extra fields, the licence
-warning still naming the resources the panel no longer caps, and the extra
-sync after a node is switched back on (the panel's switch already syncs).
+The rest of the list, done the same day (owner: "do the rest"):
+
+- **PasarGuard's managed WireGuard** (an Xray WireGuard inbound with an
+  `address` list, v5.5) is NX's own per-account wireguard endpoint: listen
+  port, prefix, MTU, the key turned into sing-box's base64 (PasarGuard also
+  takes 64 hex characters), no static peers, and on the core's template
+  (`endpointIds`). Each account brings `proxy_settings.wireguard.private_key`
+  as `config.wgPrivateKey`; the addresses are NX's to derive from the account
+  id, so customers need the new config. One without an address list is a
+  hand-written static-peer inbound and is blocked with that reason.
+- **Marzban and PasarGuard membership** becomes the config filter too. Marzban
+  stores exclusions: the account's inbounds are every inbound of each protocol
+  it has a credential for, less `excluded_inbounds` (the derived `inbounds`
+  may read "all" for a protocol that excludes everything). PasarGuard's are
+  the `inbound_tags` of the account's *enabled* groups (`GET /api/groups`);
+  an account in no enabled group reached nothing, which NX cannot say, and
+  its row says so. The filter grew an `endpoints` section for WireGuard, and
+  "on none of these" is `notIn` the full list (an account whose groups reach
+  only WireGuard is off every inbound; one that never reached WireGuard is off
+  every endpoint).
+- **Blocked inbounds keep their customers.** A client on an inbound that
+  cannot come across (MASQUE, an unknown transport) is still an account; the
+  inbound is left out of its filter (`convert.CarriedNames`), and one that was
+  *only* on such inbounds gets no filter and a note rather than reaching
+  nothing. A MASQUE client's secret (`pass` on the x-ui line, `password` on
+  3x-ui, `proxy_settings.masque.password` on PasarGuard) is its password, as is
+  PasarGuard's `proxy_settings.hysteria.auth`.
+- **x-ui's Lua scripts** (`routing.script`, `dns.script` in the Xray template,
+  each a path on the old server): with a routing script x-ui does not apply the
+  `routing_rules` table, so those rows are not carried; the template keeps the
+  balancers and says the routing has to be rebuilt. A DNS script is said.
+- **s-ui secrets**: the per-client snell `userkey` (v1.6.3) and the passwords
+  hysteria2, tuic and anytls keep of their own now take part in the
+  one-password collapse, so a different one is named as a conflict instead of
+  changing silently. The node serves multi-user snell, so the inbound carries.
+- **3x-ui `resetMax`** (v3.7): a cap whose renewals are spent
+  (`client_traffics.reset_count` ≥ `reset_max`) arrives as no cycle; one with
+  renewals left is said, because NX renews without a cap. **`excludeFromSub`**
+  (an inbound column, v3.9) is said on the inbound: NX lists every inbound in
+  the subscription.
+- **Hiddify**: its cycle is rolling from `start_date` ("monthly" is every 30
+  days) and used to arrive as a calendar month on the 1st; it is now NX's
+  rolling cycle with the first appointment on Hiddify's next reset
+  (`nextReset`, which the panel keeps on create), or opened by the plan for an
+  account that has not started. `mode: disable` arrives switched off,
+  `telegram_id` goes on the contact card, `lang`, `last_reset_time` and
+  `preferred_outbound_slug` are shown (the outbound with a note: NX routes by
+  template). An agent's `max_active_users` / `max_online_users` /
+  `max_total_usage_GB` are said, not set: Hiddify's total only refuses new
+  accounts, NX's reseller volume switches them off.
+- **The licence warning** counts accounts only; nodes are the other capped
+  resource and an import creates none.
+- **No sync after a node is switched back on**: the panel's switch already
+  syncs it.
+
+Walked on panel main (with the Sunday fix) and a stand-in PasarGuard and
+Hiddify API: 7 of 7 and 1 of 1 created; the endpoint (no peers, base64 key, on
+the template), the `in` / `notIn` filters with an `endpoints` section, the
+account's `wgPrivateKey`, the hysteria auth as the password, the rolling
+30-day cycle with its `nextReset` and the contact card were stored as sent.
+
+Still open: the Xray panels' static-peer WireGuard endpoints are created but
+not put on the template (and a wireguard endpoint with a listen port makes
+every account a peer in NX), and AmneziaWG stays blocked, so its keepalive
+range (3x-ui v3.11) has nowhere to go.
 
 ### Verified against a real panel
 

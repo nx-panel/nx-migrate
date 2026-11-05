@@ -392,10 +392,7 @@ func readClients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, i
 	}
 	names := normalize.NewNamer()
 	subBase := subscriptionBase(settings)
-	tagOf := map[string]string{}
-	for _, it := range b.Items {
-		tagOf[it.ID] = it.Name
-	}
+	tagOf := convert.CarriedNames(b)
 	// Measured against the inbounds that carry anybody, as in the Xray
 	// panels: a direct or tun inbound serves no client and must not put a
 	// filter on everyone.
@@ -495,12 +492,22 @@ func credentials(raw json.RawMessage) (uuid, password, flow, method string, conf
 			}
 		}
 	}
-	for _, proto := range []string{"trojan", "shadowsocks", "naive", "socks", "mixed", "http", "shadowtls"} {
+	// Every protocol keyed by a secret rather than a uuid. hysteria2, tuic and
+	// anytls keep a password of their own beside tuic's uuid, and snell
+	// (s-ui v1.6.3, one per client) a userkey; NX keys them all with the one
+	// password, so a different secret on any of them is a link that changes.
+	for _, pk := range [][2]string{
+		{"trojan", "password"}, {"shadowsocks", "password"}, {"hysteria2", "password"},
+		{"tuic", "password"}, {"anytls", "password"}, {"naive", "password"},
+		{"socks", "password"}, {"mixed", "password"}, {"http", "password"},
+		{"shadowtls", "password"}, {"snell", "userkey"},
+	} {
+		proto := pk[0]
 		cfg, ok := byProto[proto]
 		if !ok {
 			continue
 		}
-		v := strOf(cfg["password"])
+		v := strOf(cfg[pk[1]])
 		if v == "" {
 			continue
 		}

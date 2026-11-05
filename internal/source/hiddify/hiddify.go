@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -48,6 +49,12 @@ type hiddifyUser struct {
 	AddedBy      string   `json:"added_by_uuid"`
 	Enable       *bool    `json:"enable"`
 	IsActive     *bool    `json:"is_active"`
+	// The person, and what Hiddify keeps about them beside the plan.
+	TelegramID    *int64 `json:"telegram_id"`
+	Lang          string `json:"lang"`
+	LastResetTime string `json:"last_reset_time"`
+	// v14: the outbound all of this account's traffic leaves through.
+	PreferredOutbound string `json:"preferred_outbound_slug"`
 }
 
 type hiddifyAdmin struct {
@@ -56,6 +63,10 @@ type hiddifyAdmin struct {
 	Mode     string `json:"mode"`
 	Comment  string `json:"comment"`
 	MaxUsers *int   `json:"max_users"`
+	// v10.30 / v14: the agent's other limits.
+	MaxActiveUsers *int     `json:"max_active_users"`
+	MaxOnlineUsers *int     `json:"max_online_users"`
+	MaxTotalGB     *float64 `json:"max_total_usage_GB"`
 }
 
 func (reader) Read(ctx context.Context, opt source.Options) (*bundle.Bundle, error) {
@@ -108,6 +119,16 @@ func readAdmins(ctx context.Context, c *httpx.Client, base string, b *bundle.Bun
 		if role == "resale" && a.MaxUsers != nil && *a.MaxUsers > 0 {
 			payload["userLimit"] = *a.MaxUsers
 		}
+		var limits []string
+		if a.MaxActiveUsers != nil && *a.MaxActiveUsers > 0 {
+			limits = append(limits, fmt.Sprintf("%d active accounts", *a.MaxActiveUsers))
+		}
+		if a.MaxOnlineUsers != nil && *a.MaxOnlineUsers > 0 {
+			limits = append(limits, fmt.Sprintf("%d accounts online in a day", *a.MaxOnlineUsers))
+		}
+		if a.MaxTotalGB != nil && *a.MaxTotalGB > 0 {
+			limits = append(limits, fmt.Sprintf("%g GB across its accounts", *a.MaxTotalGB))
+		}
 		body, _ := json.Marshal(payload)
 		it := bundle.Item{
 			ID: "admin:" + a.UUID, Kind: bundle.KindAdmin,
@@ -120,6 +141,13 @@ func readAdmins(ctx context.Context, c *httpx.Client, base string, b *bundle.Bun
 			it.AddNote("%s", res.Note)
 		}
 		it.AddNote("password hashes cannot move between panels: this admin arrives with the generated password shown here — write it down, it is not stored")
+		if len(limits) > 0 {
+			// Hiddify's total traffic cap only stops new accounts being made
+			// or switched on; NX's reseller volume switches the accounts off,
+			// so carrying it would cut customers off that Hiddify kept serving.
+			it.Set("hiddify limits", strings.Join(limits, ", "))
+			it.AddNote("Hiddify also limited this admin to %s; NX has no equivalent that behaves the same (its reseller traffic volume switches the accounts off rather than only refusing new ones), so these were not set — set a user limit or volume on the admin in NX if you want one", strings.Join(limits, ", "))
+		}
 		b.Add(it)
 		out[a.UUID] = it.ID
 	}
@@ -177,7 +205,24 @@ func userItem(u hiddifyUser, names *normalize.Namer, admins map[string]string) b
 		}
 	}
 
-	convert.ApplyResetStrategy(&c, u.Mode, 0)
+	start, started := parseDate(u.StartDate)
+	if n, ok := resetEvery[strings.ToLower(u.Mode)]; ok {
+		// Hiddify's cycle is rolling and counted from the start date: usage
+		// resets on every day that is a whole number of periods after it
+		// ("monthly" is every 30 days, not the 1st). NX's rolling cycle is the
+		// same thing once its first appointment is on Hiddify's next one; an
+		// account that has not started opens it when its plan does.
+		c.AutoReset, c.ResetDays = true, n
+		if started {
+			c.NextReset = nextRollingReset(start, n, time.Now())
+		}
+	}
+	if strings.EqualFold(u.Mode, "disable") {
+		c.Enable = false
+	}
+	if u.TelegramID != nil && *u.TelegramID != 0 {
+		convert.SetContact(&c, convert.ContactTelegramID, strconv.FormatInt(*u.TelegramID, 10))
+	}
 
 	if id, ok := admins[u.AddedBy]; ok {
 		c.OwnerItem = id
@@ -192,7 +237,31 @@ func userItem(u hiddifyUser, names *normalize.Namer, admins map[string]string) b
 	if u.IsActive != nil && !*u.IsActive {
 		it.Set("active in hiddify", "no")
 	}
+	if u.Lang != "" {
+		it.Set("language", u.Lang)
+	}
+	if t, ok := parseTime(u.LastResetTime); ok {
+		it.Set("last reset", t.Format("2006-01-02"))
+	}
+	if u.PreferredOutbound != "" {
+		it.Set("preferred outbound", u.PreferredOutbound)
+		it.AddNote("in Hiddify all of this account's traffic left through the %q outbound; NX routes by the template, not by the account, so it now follows the template's rules", u.PreferredOutbound)
+	}
 	return it
+}
+
+// resetEvery is Hiddify's package_mode_dic: the length of each rolling cycle.
+var resetEvery = map[string]int{"daily": 1, "weekly": 7, "monthly": 30}
+
+// nextRollingReset is the first day after now that is a whole number of
+// n-day periods from start, as Hiddify counts it.
+func nextRollingReset(start time.Time, n int, now time.Time) int64 {
+	period := time.Duration(n) * 24 * time.Hour
+	if now.Before(start) {
+		return start.Add(period).Unix()
+	}
+	k := now.Sub(start)/period + 1
+	return start.Add(k * period).Unix()
 }
 
 func parseDate(s string) (time.Time, bool) {

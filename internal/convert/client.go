@@ -97,6 +97,38 @@ type Client struct {
 	// chosen inbounds, and NX's equivalent is the account's config filter (a
 	// `tag in …` rule). Empty means every inbound. Set it with LimitToInbounds.
 	InboundTags []string
+	// WGPrivateKey is the account's own WireGuard key (base64), from a panel
+	// that gives each account one. NX keeps it in the account's config and
+	// derives the public key from it, so the customer keeps the key it has.
+	WGPrivateKey string
+	// NextReset is the next usage reset (unix seconds) when the old panel
+	// counts its cycle from a date of its own, rather than from the day the
+	// account arrives in NX. 0 lets the panel open the cycle itself.
+	NextReset int64
+	// EndpointTags narrows the account to these WireGuard endpoints, the way
+	// InboundTags narrows its inbounds. Set it with LimitToEndpoints.
+	EndpointTags []string
+	// InboundsOff and EndpointsOff are every one of them, for an account the
+	// old panel put on none of those the others had: "in nothing" cannot be
+	// said, "not in these" can.
+	InboundsOff  []string
+	EndpointsOff []string
+	// OnlyUncarried is an account the old panel had only on inbounds that
+	// cannot come to NX (MASQUE, an unknown transport…). It is not limited.
+	OnlyUncarried bool
+}
+
+// CarriedNames maps the id of every item that will be carried to its NX name
+// (an inbound's is its tag). A blocked item is left out: an account limited
+// to an inbound that never reaches NX would reach nothing at all.
+func CarriedNames(b *bundle.Bundle) map[string]string {
+	out := make(map[string]string, len(b.Items))
+	for _, it := range b.Items {
+		if it.Severity != bundle.SevBlocked {
+			out[it.ID] = it.Name
+		}
+	}
+	return out
 }
 
 // MaxFilterValues is the panel's cap on the values of one config-filter rule.
@@ -106,9 +138,52 @@ const MaxFilterValues = 64
 // its template carries. An account on all of them needs no filter, and gets
 // none: a filter is a restriction, and one that names everything would only
 // stop the account from reaching an inbound added later.
+//
+// An empty tag is an inbound that is not carried (see CarriedNames). An
+// account that was only on such inbounds is not limited — limited to nothing
+// it would reach nothing — and its row says so.
+//
+// An empty mine is an account on none of them (a PasarGuard account whose
+// groups reach only WireGuard): it is kept off every one.
 func LimitToInbounds(c *Client, mine, all []string) {
+	if len(mine) == 0 {
+		c.InboundsOff = offAll(all)
+		return
+	}
+	tags, uncarried := limitTags(mine, all)
+	c.InboundTags = tags
+	c.OnlyUncarried = c.OnlyUncarried || uncarried
+}
+
+func offAll(all []string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, t := range all {
+		if t != "" && !seen[t] {
+			seen[t] = true
+			out = append(out, t)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// LimitToEndpoints is LimitToInbounds for the account's WireGuard endpoints.
+func LimitToEndpoints(c *Client, mine, all []string) {
+	c.EndpointTags, _ = limitTags(mine, all)
+	if len(c.EndpointTags) > 0 {
+		return
+	}
+	for _, t := range mine {
+		if t != "" {
+			return // on every one of them
+		}
+	}
+	c.EndpointsOff = offAll(all)
+}
+
+func limitTags(mine, all []string) (tags []string, onlyUncarried bool) {
 	have := map[string]bool{}
-	var tags []string
 	for _, t := range mine {
 		if t != "" && !have[t] {
 			have[t] = true
@@ -116,20 +191,15 @@ func LimitToInbounds(c *Client, mine, all []string) {
 		}
 	}
 	if len(tags) == 0 {
-		return
+		return nil, len(mine) > 0
 	}
-	everything := true
 	for _, t := range all {
 		if !have[t] {
-			everything = false
-			break
+			sort.Strings(tags)
+			return tags, false
 		}
 	}
-	if everything {
-		return
-	}
-	sort.Strings(tags)
-	c.InboundTags = tags
+	return nil, false
 }
 
 // ClientItem turns a Client into the bundle item that will be POSTed to
@@ -142,6 +212,7 @@ func ClientItem(c Client, namer *normalize.Namer) bundle.Item {
 	setStr(cred, "password", c.Password)
 	setStr(cred, "flow", c.Flow)
 	setStr(cred, "method", c.Method)
+	setStr(cred, "wgPrivateKey", c.WGPrivateKey)
 	credRaw, _ := json.Marshal(cred)
 
 	payload := map[string]any{
@@ -175,6 +246,9 @@ func ClientItem(c Client, namer *normalize.Namer) bundle.Item {
 	if c.ActivatedAt > 0 {
 		payload["activatedAt"] = c.ActivatedAt
 	}
+	if c.NextReset > 0 && c.AutoReset {
+		payload["nextReset"] = c.NextReset
+	}
 	if c.SubID != "" {
 		payload["subId"] = c.SubID
 	}
@@ -188,16 +262,29 @@ func ClientItem(c Client, namer *normalize.Namer) bundle.Item {
 		payload["templateIds"] = []uint{}
 	}
 	filterNote := ""
-	switch n := len(c.InboundTags); {
-	case n > MaxFilterValues:
-		filterNote = fmt.Sprintf("the old panel had this account on %d of its inbounds, more than the %d one config filter can name, so it is on every inbound of its template — narrow it in NX if that matters", n, MaxFilterValues)
-	case n > 0:
-		// Keyed by tag, which is what the panel stores and matches (an inbound
-		// tag is unique there). A tag naming an inbound the template does not
-		// carry is ignored by the panel, never refused.
-		payload["configFilter"] = map[string]any{
-			"inbounds": []map[string]any{{"field": "tag", "op": "in", "values": c.InboundTags}},
+	filter := map[string]any{}
+	for _, sec := range []struct {
+		key, what string
+		tags      []string
+	}{{"inbounds", "inbounds", c.InboundTags}, {"endpoints", "WireGuard endpoints", c.EndpointTags}} {
+		switch n := len(sec.tags); {
+		case n > MaxFilterValues:
+			filterNote = fmt.Sprintf("the old panel had this account on %d of its %s, more than the %d one config filter can name, so it is on every one of its template — narrow it in NX if that matters", n, sec.what, MaxFilterValues)
+		case n > 0:
+			// Keyed by tag, which is what the panel stores and matches (a tag
+			// is unique there). A tag naming something the template does not
+			// carry is ignored by the panel, never refused.
+			filter[sec.key] = []map[string]any{{"field": "tag", "op": "in", "values": sec.tags}}
 		}
+	}
+	if n := len(c.InboundsOff); n > 0 && n <= MaxFilterValues && len(c.InboundTags) == 0 {
+		filter["inbounds"] = []map[string]any{{"field": "tag", "op": "notIn", "values": c.InboundsOff}}
+	}
+	if n := len(c.EndpointsOff); n > 0 && n <= MaxFilterValues && len(c.EndpointTags) == 0 {
+		filter["endpoints"] = []map[string]any{{"field": "tag", "op": "notIn", "values": c.EndpointsOff}}
+	}
+	if len(filter) > 0 {
+		payload["configFilter"] = filter
 	}
 	raw, _ := json.Marshal(payload)
 
@@ -236,11 +323,23 @@ func ClientItem(c Client, namer *normalize.Namer) bundle.Item {
 	if n := len(c.InboundTags); n > 0 && n <= MaxFilterValues {
 		it.Set("limited to", strings.Join(c.InboundTags, ", "))
 	}
+	if n := len(c.EndpointTags); n > 0 && n <= MaxFilterValues {
+		it.Set("wireguard limited to", strings.Join(c.EndpointTags, ", "))
+	}
+	if n := len(c.EndpointsOff); n > 0 && n <= MaxFilterValues && len(c.EndpointTags) == 0 {
+		it.Set("wireguard", "none")
+	}
+	if n := len(c.InboundsOff); n > 0 && n <= MaxFilterValues && len(c.InboundTags) == 0 {
+		it.Set("inbounds", "none (WireGuard only)")
+	}
 	if res.Changed {
 		it.AddNote("%s", res.Note)
 	}
 	if filterNote != "" {
 		it.AddNote("%s", filterNote)
+	}
+	if c.OnlyUncarried {
+		it.AddNote("the old panel had this account only on inbounds that cannot come to NX, so it is on every inbound of its template here — limit it in NX if it should reach fewer")
 	}
 	if len(c.Conflicts) > 0 {
 		it.AddNote("NX keeps one credential set per account; these protocols had their own and will change for this user: %s",

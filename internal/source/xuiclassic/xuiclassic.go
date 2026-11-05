@@ -94,10 +94,14 @@ func readConfiguration(b *bundle.Bundle, db *sqlitex.DB, settings map[string]str
 	rc := convert.RouteContext{Blocked: map[string]bool{}, Renamed: renamed}
 
 	outbounds := readOutbounds(b, db, tags, rc, tpl)
-	routing := readRoutingRules(b, db, tpl)
+	routing, scriptNotes := scriptedRouting(tpl)
+	if routing == nil {
+		routing = readRoutingRules(b, db, tpl)
+	}
 
 	route, routeNotes, ruleSetTags := convert.Routing(routing, rc)
 	dns, dnsNotes := convert.DNS(objOf(tpl, "dns"))
+	routeNotes = append(scriptNotes, routeNotes...)
 	ruleSets := xraysql.RuleSets(b, ruleSetTags)
 
 	if len(route) == 0 && dns == nil && len(outbounds) == 0 && len(inbounds) == 0 {
@@ -184,6 +188,32 @@ func readOutbounds(b *bundle.Bundle, db *sqlitex.DB, tags *normalize.Namer, rc c
 	return out
 }
 
+// scriptedRouting answers for an install that routes, or resolves, through a
+// Lua script (x-ui v1.14+: routing.script / dns.script in the Xray template,
+// each a path to a file on the old server). With a routing script the panel
+// stops applying the routing_rules table — Xray refuses rules beside a script
+// — so those rows are not what the server did and are not carried. NX has no
+// scripted routing; the template arrives with the balancers and no rules, and
+// says so. The returned routing is nil when there is no routing script.
+func scriptedRouting(tpl convert.Obj) (convert.Obj, []string) {
+	var notes []string
+	if script := strings.TrimSpace(str(objOf(tpl, "dns")["script"])); script != "" {
+		notes = append(notes, fmt.Sprintf(
+			"DNS answers were chosen by the Lua script %s on the old server; NX has no scripted DNS, so the servers came across and the script's choices did not — express them as DNS rules in NX", script))
+	}
+	meta := objOf(tpl, "routing")
+	script := strings.TrimSpace(str(meta["script"]))
+	if script == "" {
+		return nil, notes
+	}
+	routing := convert.Obj{}
+	if bal, ok := meta["balancers"]; ok {
+		routing["balancers"] = bal
+	}
+	return routing, append(notes, fmt.Sprintf(
+		"routing was decided by the Lua script %s on the old server, which x-ui runs instead of its routing rules; NX has no scripted routing, so this template has no rules — rebuild what the script did as rules in NX (the rules saved in x-ui were not in force and were not carried)", script))
+}
+
 // readRoutingRules assembles an Xray routing object out of the `routing_rules`
 // table — one rule per row, as raw JSON, in the operator's own order — or out
 // of the template for an install without that table.
@@ -228,4 +258,9 @@ func objOf(parent convert.Obj, key string) convert.Obj {
 	}
 	o, _ := parent[key].(convert.Obj)
 	return o
+}
+
+func str(v any) string {
+	s, _ := v.(string)
+	return s
 }

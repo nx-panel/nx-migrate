@@ -61,6 +61,8 @@ type XrayClient struct {
 	// 3x-ui v3.9: ResetWeekday is the calendar-weekly renewal, Monday 1 to
 	// Sunday 7, with Reset and ResetDay both 0. Zero is "not weekly".
 	ResetWeekday int
+	// 3x-ui v3.7: the cap on automatic renewals, 0 for none.
+	ResetMax int
 	// What 3x-ui keeps about the *person*: the Telegram id the panel's bot
 	// messages them on, and a free-text note. Both were read by nobody before
 	// NX had somewhere to put them.
@@ -126,6 +128,9 @@ func Inbound(protocol string, listen string, port int, settings, stream Obj) Xra
 		default:
 			out.Blocked = fmt.Sprintf("sing-box has no inbound of type %q", protocol)
 		}
+		// Its clients are still customers: they come across as accounts on
+		// the inbounds NX does carry.
+		out.Clients = clientsFrom(protocol, settings)
 		return out
 	}
 	out.Type = typ
@@ -208,9 +213,12 @@ func clientsFrom(protocol string, settings Obj) []XrayClient {
 			continue
 		}
 		cl := XrayClient{
-			Email:        str(c["email"]),
-			UUID:         str(c["id"]),
-			Password:     firstNonEmpty(str(c["password"]), str(c["auth"])),
+			Email: str(c["email"]),
+			UUID:  str(c["id"]),
+			// auth is a Hysteria client's; pass is a MASQUE client's on the
+			// x-ui line (3x-ui keeps password there and renames it only for
+			// the core).
+			Password:     firstNonEmpty(str(c["password"]), str(c["auth"]), str(c["pass"])),
 			Flow:         str(c["flow"]),
 			Method:       str(c["method"]),
 			SubID:        str(c["subId"]),
@@ -219,6 +227,7 @@ func clientsFrom(protocol string, settings Obj) []XrayClient {
 			Reset:        int(num(c["reset"])),
 			ResetDay:     int(num(c["resetDay"])),
 			ResetWeekday: int(num(c["resetWeekday"])),
+			ResetMax:     int(num(c["resetMax"])),
 			// Written only when set: a plain "never" says nothing.
 			TrafficReset:    str(c["trafficReset"]),
 			TrafficResetDay: int(num(c["trafficResetDay"])),

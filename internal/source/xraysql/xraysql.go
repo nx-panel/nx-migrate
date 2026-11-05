@@ -56,6 +56,9 @@ type Account struct {
 	ResetDay int
 	// ResetWeekday is 3x-ui's calendar-weekly renewal, Monday 1 to Sunday 7.
 	ResetWeekday int
+	// ResetMax caps how many automatic renewals 3x-ui (v3.7) may fire; 0 is
+	// no cap. How many have fired is only on the traffic row.
+	ResetMax int
 	// TrafficReset/TrafficResetDay are 3x-ui's per-client traffic cycle.
 	TrafficReset    string
 	TrafficResetDay int
@@ -146,6 +149,9 @@ func (a Accounts) Merge(clients []convert.XrayClient, protocol, inboundItem stri
 		if c.ResetWeekday > 0 && acc.ResetWeekday == 0 {
 			acc.ResetWeekday = c.ResetWeekday
 		}
+		if c.ResetMax > 0 && acc.ResetMax == 0 {
+			acc.ResetMax = c.ResetMax
+		}
 		if t := strings.ToLower(strings.TrimSpace(c.TrafficReset)); t != "" && t != "never" && acc.TrafficReset == "" {
 			acc.TrafficReset, acc.TrafficResetDay = t, c.TrafficResetDay
 		}
@@ -211,6 +217,7 @@ func Inbounds(b *bundle.Bundle, db *sqlitex.DB, p Panel, tags *normalize.Namer, 
 	rows, err := db.Select("inbounds", []string{
 		"id", "up", "down", "total", "remark", "enable", "expiry_time", "listen",
 		"port", "protocol", "settings", "stream_settings", "tag", "sniffing",
+		"exclude_from_sub",
 	}, "id")
 	if err != nil {
 		b.Note("no inbounds were read: %v", err)
@@ -253,10 +260,20 @@ func Inbounds(b *bundle.Bundle, db *sqlitex.DB, p Panel, tags *normalize.Namer, 
 			it.Set("enabled in "+p.Name, "no")
 			it.AddNote("%s", convert.DisabledInboundNote(p.Name))
 		}
+		if r.Bool("exclude_from_sub") {
+			// 3x-ui v3.9: the inbound serves its clients but its links are
+			// left out of their subscription.
+			it.Set("in subscriptions", "no")
+			it.AddNote("%s kept this inbound out of its subscriptions (its clients connected with links given some other way); NX lists every inbound of an account's templates in its subscription, so this one will appear there", p.Name)
+		}
 
 		if conv.Blocked != "" {
 			it.Block("%s", conv.Blocked)
 			b.Add(it)
+			// The inbound stays behind, its customers do not: they become
+			// accounts on what NX does carry (CarriedNames leaves this
+			// inbound out of their filter).
+			accounts.Merge(conv.Clients, protocol, it.ID)
 			continue
 		}
 		conv.Config["tag"] = res.Name
@@ -391,7 +408,8 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 	traffic := map[string]sqlitex.Row{}
 	rows, err := db.Select("client_traffics", []string{
 		"id", "inbound_id", "enable", "email", "up", "down", "expiry_time",
-		"total", "reset", "reset_day", "reset_weekday", "last_online",
+		"total", "reset", "reset_day", "reset_weekday", "reset_max", "reset_count",
+		"last_online",
 	}, "id")
 	if err == nil {
 		for _, r := range rows {
@@ -407,7 +425,7 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 	// The inbounds that carry anybody are what an account is measured
 	// against: one that serves no client in the old panel (a SOCKS inbound
 	// with its own accounts, say) would otherwise put a filter on everyone.
-	tagOf := ItemNames(b)
+	tagOf := convert.CarriedNames(b)
 	var allTags []string
 	for _, a := range accounts.Ordered() {
 		for _, id := range a.Inbounds {
@@ -474,6 +492,10 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 			weekday = n
 		}
 		var resetNote string
+		resetMax := a.ResetMax
+		if n := int(t.Int("reset_max")); n > 0 {
+			resetMax = n
+		}
 		switch {
 		case a.TrafficReset == "hourly":
 			// NX's shortest cycle is a day; an hourly reset is
@@ -493,6 +515,17 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 			c.AutoReset, c.ResetPeriod, c.ResetStartDay = true, "weekly", weekday%7
 		case reset > 0:
 			c.AutoReset, c.ResetDays = true, reset
+		}
+		// A capped renewal: NX renews for as long as the cycle is on, so a
+		// spent cap means no cycle, and one with renewals left is said.
+		if c.AutoReset && resetMax > 0 {
+			used := int(t.Int("reset_count"))
+			if used >= resetMax {
+				c.AutoReset, c.ResetDays, c.ResetPeriod, c.ResetStartDay = false, 0, "", 0
+				resetNote = fmt.Sprintf("all %d of this account's automatic renewals in the old panel were used, so it arrives with no renewal", resetMax)
+			} else {
+				resetNote = fmt.Sprintf("the old panel allowed this account %d more automatic renewal(s) of %d; NX renews for as long as the cycle is on, so switch it off after the last one", resetMax-used, resetMax)
+			}
 		}
 
 		// The two things this panel keeps about the person. The Telegram id
@@ -535,16 +568,6 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 	if peers > 0 {
 		b.Note("%d WireGuard peer(s) arrive on their endpoint, as written, rather than as accounts", peers)
 	}
-}
-
-// ItemNames maps every bundle item id to its NX name (an inbound's is its
-// tag), for the readers that hold ids and need what the panel will call them.
-func ItemNames(b *bundle.Bundle) map[string]string {
-	out := make(map[string]string, len(b.Items))
-	for _, it := range b.Items {
-		out[it.ID] = it.Name
-	}
-	return out
 }
 
 // SubscriptionBase reconstructs the old subscription address so the review

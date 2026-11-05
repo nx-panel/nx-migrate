@@ -3,6 +3,7 @@ package sui
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -109,5 +110,20 @@ func TestClientOnlyDialIsDropped(t *testing.T) {
 	}
 	if cfg := payload(t, find(t, b, "outbound:2"))["config"].(map[string]any); cfg["fallback_delay"] != "300ms" {
 		t.Errorf("fallback_delay is a server option and must stay: %v", cfg)
+	}
+}
+
+// Since s-ui v1.6.3 every client carries a snell userkey, and hysteria2, tuic
+// and anytls keep passwords of their own; NX keys them all with one password,
+// so a secret that differs is named rather than silently replaced.
+func TestEverySecretIsWeighed(t *testing.T) {
+	_, pw, _, _, conflicts := credentials(json.RawMessage(`{"snell":{"name":"a","userkey":"sk"}}`))
+	if pw != "sk" || len(conflicts) != 0 {
+		t.Errorf("snell only: password %q, conflicts %v", pw, conflicts)
+	}
+	_, pw, _, _, conflicts = credentials(json.RawMessage(`{"trojan":{"password":"tp"},
+		"hysteria2":{"password":"hp"},"anytls":{"password":"tp"},"snell":{"userkey":"sk"}}`))
+	if pw != "tp" || strings.Join(conflicts, ",") != "hysteria2,snell" {
+		t.Errorf("password %q, conflicts %v", pw, conflicts)
 	}
 }

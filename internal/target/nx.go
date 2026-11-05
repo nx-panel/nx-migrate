@@ -298,11 +298,6 @@ func (c *Client) SetNodeEnabled(ctx context.Context, id uint, enabled bool) erro
 		map[string]bool{"enabled": enabled}, nil)
 }
 
-// SyncNode pushes the panel's current state to one node.
-func (c *Client) SyncNode(ctx context.Context, id uint) error {
-	return c.http.Post(ctx, fmt.Sprintf("/api/nodes/%d/sync", id), nil, nil)
-}
-
 // Delete removes one created row, used by the rollback of a failed run.
 func (c *Client) Delete(ctx context.Context, path string, id uint) error {
 	return c.http.Do(ctx, http.MethodDelete, fmt.Sprintf("%s/%d", path, id), nil, nil)

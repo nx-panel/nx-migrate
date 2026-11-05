@@ -301,7 +301,8 @@ func pauseNodes(ctx context.Context, c *target.Client, opt Options, res *Result,
 	return paused
 }
 
-// resumeNodes switches the fleet back on and pushes once per node. It runs even
+// resumeNodes switches the fleet back on, which the panel answers with one
+// sync per node. It runs even
 // when the import failed or was cancelled: leaving an operator's nodes disabled
 // is a far worse outcome than a half-finished import.
 func resumeNodes(ctx context.Context, c *target.Client, paused []target.Node, res *Result, send func(Event)) {
@@ -317,11 +318,9 @@ func resumeNodes(ctx context.Context, c *target.Client, paused []target.Node, re
 				fmt.Sprintf("node %q could not be switched back on (%v) — turn it on in the panel", n.Name, err))
 			continue
 		}
-		if err := c.SyncNode(ctx, n.ID); err != nil {
-			res.Notes = append(res.Notes,
-				fmt.Sprintf("node %q is on again but would not sync (%v) — push it from the panel", n.Name, err))
-		}
+		// No sync of our own: switching a node on makes the panel sync it, so
+		// a second push here would only send the same state again.
 	}
 	send(Event{Phase: "nodes resumed", Status: StatusCreated,
-		Message: fmt.Sprintf("%d node(s) were switched back on and synced", len(paused))})
+		Message: fmt.Sprintf("%d node(s) were switched back on; the panel syncs each one as it comes back", len(paused))})
 }

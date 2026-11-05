@@ -473,34 +473,26 @@ func (s *Server) handlePlan(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// licenceWarnings compares what is about to be created against the panel's
-// remaining licence headroom, so a run that cannot finish is refused before it
-// starts rather than halfway through.
+// licenceWarnings compares the accounts about to be created against the
+// panel's remaining licence headroom, so a run that cannot finish is refused
+// before it starts rather than halfway through. Accounts are the one thing an
+// import creates that the licence caps: nodes are the other capped resource,
+// and an import creates none.
 func licenceWarnings(pre target.Preflight, counts map[bundle.Kind]int) []string {
+	want := counts[bundle.KindClient]
+	if want == 0 {
+		return nil
+	}
 	if !pre.LicenceReadable {
-		return []string{"this login cannot read the licence (only the main admin can), so the import could still hit a limit partway through"}
+		return []string{"this login cannot read the licence (only the main admin can), so the import could still hit the account limit partway through"}
 	}
-	var out []string
-	for kind, resource := range map[bundle.Kind]string{
-		bundle.KindClient: "user", bundle.KindInbound: "inbound",
-		bundle.KindOutbound: "outbound", bundle.KindEndpoint: "endpoint",
-		bundle.KindAdmin: "admin",
-	} {
-		want := counts[kind]
-		if want == 0 {
-			continue
-		}
-		room, ok := pre.Headroom(resource)
-		if !ok || room < 0 {
-			continue
-		}
-		if int64(want) > room {
-			out = append(out, fmt.Sprintf(
-				"the licence has room for %d more %s(s) but %d are selected — the run would stop when it fills up",
-				room, resource, want))
-		}
+	room, ok := pre.Headroom("user")
+	if !ok || room < 0 || int64(want) <= room {
+		return nil
 	}
-	return out
+	return []string{fmt.Sprintf(
+		"the licence has room for %d more user(s) but %d are selected — the run would stop when it fills up",
+		room, want)}
 }
 
 func collisionWarnings(pre target.Preflight, names map[bundle.Kind][]string) []string {

@@ -27,6 +27,20 @@ func fixtureV39(t *testing.T) string {
 		args []any
 	}{
 		{`ALTER TABLE client_traffics ADD COLUMN reset_weekday INTEGER`, nil},
+		{`ALTER TABLE client_traffics ADD COLUMN reset_max INTEGER`, nil},
+		{`ALTER TABLE client_traffics ADD COLUMN reset_count INTEGER`, nil},
+		{`ALTER TABLE inbounds ADD COLUMN exclude_from_sub INTEGER`, nil},
+		{`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing, exclude_from_sub)
+			VALUES (10,'capped',1,'',9447,'vless',?,'{"network":"tcp"}','inbound-capped','',1)`,
+			[]any{`{"clients":[
+				{"id":"44444444-4444-4444-4444-444444444444","email":"spent","reset":30,"resetMax":3,"enable":true},
+				{"id":"55555555-5555-5555-5555-555555555555","email":"left","reset":30,"resetMax":3,"enable":true}
+			],"decryption":"none"}`}},
+		{`INSERT INTO client_traffics (inbound_id, enable, email, up, down, expiry_time, total, reset, reset_day, reset_max, reset_count)
+			VALUES (10,1,'spent',0,0,0,0,30,0,3,3), (10,1,'left',0,0,0,0,30,0,3,1)`, nil},
+		{`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
+			VALUES (11,'masque',1,'',9448,'masque',?,'{"network":"tcp"}','inbound-masque','')`,
+			[]any{`{"clients":[{"email":"mq","pass":"mq-secret","enable":true}],"address":["10.14.0.1/24"]}`}},
 		{`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
 			VALUES (6,'weekly',1,'',9444,'vless',?,'{"network":"tcp"}','inbound-9444','')`,
 			[]any{`{"clients":[
@@ -45,7 +59,7 @@ func fixtureV39(t *testing.T) string {
 			}},
 		{`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
 			VALUES (8,'xdrive',1,'',9445,'vless',?,'{"network":"xdrive","xdriveSettings":{}}','inbound-xd','')`,
-			[]any{`{"clients":[],"decryption":"none"}`}},
+			[]any{`{"clients":[{"id":"33333333-3333-3333-3333-333333333333","email":"xdonly","enable":true}],"decryption":"none"}`}},
 		{`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
 			VALUES (9,'off',0,'',9446,'vless',?,'{"network":"tcp"}','inbound-off','')`,
 			[]any{`{"clients":[],"decryption":"none"}`}},
@@ -152,5 +166,57 @@ func TestConfigFilterFollowsInbounds(t *testing.T) {
 	}
 	if _, ok := f["endpoints"]; ok {
 		t.Errorf("the endpoints section must stay absent, which restricts nothing: %v", f)
+	}
+}
+
+// An account the old panel had only on an inbound that cannot come across is
+// not limited to it: limited to nothing, it would reach nothing.
+func TestOnlyOnABlockedInbound(t *testing.T) {
+	it := find(t, readV39(t), "client:xdonly")
+	if f, ok := payload(t, it)["configFilter"]; ok {
+		t.Errorf("filter = %v, want none", f)
+	}
+	if !strings.Contains(strings.Join(it.Notes, " "), "only on inbounds that cannot come to NX") {
+		t.Errorf("notes = %v", it.Notes)
+	}
+}
+
+// 3x-ui caps how many times a client may auto-renew. NX renews for as long as
+// the cycle is on: a spent cap arrives as no cycle, one with renewals left is
+// said.
+func TestRenewalCap(t *testing.T) {
+	b := readV39(t)
+	spent := find(t, b, "client:spent")
+	if p := payload(t, spent); p["autoReset"] != false || !strings.Contains(strings.Join(spent.Notes, " "), "all 3") {
+		t.Errorf("spent: autoReset %v, notes %v", p["autoReset"], spent.Notes)
+	}
+	left := find(t, b, "client:left")
+	if p := payload(t, left); p["autoReset"] != true || p["resetDays"] != float64(30) ||
+		!strings.Contains(strings.Join(left.Notes, " "), "2 more automatic renewal(s) of 3") {
+		t.Errorf("left: autoReset %v resetDays %v, notes %v", p["autoReset"], p["resetDays"], left.Notes)
+	}
+}
+
+func TestExcludedFromSubscriptionsIsSaid(t *testing.T) {
+	it := find(t, readV39(t), "inbound:10")
+	if it.Detail["in subscriptions"] != "no" || !strings.Contains(strings.Join(it.Notes, " "), "out of its subscriptions") {
+		t.Errorf("detail = %v, notes = %v", it.Detail, it.Notes)
+	}
+}
+
+// A MASQUE inbound stays behind; its client is still a customer, keeps the
+// secret (x-ui's pass key) as its password, and is limited to nothing.
+func TestMasqueClientComesAcross(t *testing.T) {
+	b := readV39(t)
+	if find(t, b, "inbound:11").Severity != bundle.SevBlocked {
+		t.Error("the MASQUE inbound must stay blocked")
+	}
+	it := find(t, b, "client:mq")
+	p := payload(t, it)
+	if it.Severity == bundle.SevBlocked || p["config"].(map[string]any)["password"] != "mq-secret" {
+		t.Errorf("severity %s, config %v, notes %v", it.Severity, p["config"], it.Notes)
+	}
+	if _, ok := p["configFilter"]; ok {
+		t.Errorf("filter = %v", p["configFilter"])
 	}
 }

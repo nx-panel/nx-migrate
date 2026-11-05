@@ -69,7 +69,11 @@ func (r reader) Read(ctx context.Context, opt source.Options) (*bundle.Bundle, e
 	tags.Reserve(convert.BuiltinDirect)
 	templates := readCores(ctx, c, b, tags)
 	admins := readAdmins(ctx, c, b)
-	readUsers(ctx, c, b, admins, templates)
+	var groups map[int64]pgGroup
+	if r.flavour == "pasarguard" {
+		groups = readGroups(ctx, c, b)
+	}
+	readUsers(ctx, c, b, admins, templates, groups, r.flavour == "pasarguard")
 	return b, nil
 }
 
@@ -170,13 +174,17 @@ func readCores(ctx context.Context, c *httpx.Client, b *bundle.Bundle, tags *nor
 // convertCore turns one Xray configuration into its inbounds, outbounds and
 // rule sets plus the template that joins them, and returns the template's id.
 func convertCore(b *bundle.Bundle, tags *normalize.Namer, cfg convert.Obj, name, itemID string) string {
-	var inbounds, outbounds []string
+	var inbounds, outbounds, endpoints []string
 
 	rc := convert.RouteContext{Blocked: map[string]bool{}, Renamed: map[string]string{}}
 	if arr, ok := cfg["inbounds"].([]any); ok {
 		for i, e := range arr {
 			o, ok := e.(convert.Obj)
 			if !ok {
+				continue
+			}
+			if p, _ := o["protocol"].(string); strings.EqualFold(p, "wireguard") {
+				endpoints = appendIf(endpoints, convertWireGuard(b, tags, i, o, rc))
 				continue
 			}
 			inbounds = appendIf(inbounds, convertInbound(b, tags, i, o, rc))
@@ -200,6 +208,7 @@ func convertCore(b *bundle.Bundle, tags *normalize.Namer, cfg convert.Obj, name,
 		"name":       name,
 		"remark":     "routing, DNS and egress carried over from " + b.Source.Panel,
 		"inboundIds": []uint{}, "outboundIds": []uint{}, "ruleSetIds": []uint{},
+		"endpointIds": []uint{},
 	}
 	if len(route) > 0 {
 		payload["route"] = route
@@ -213,6 +222,7 @@ func convertCore(b *bundle.Bundle, tags *normalize.Namer, cfg convert.Obj, name,
 		SourceName: "xray core config", Payload: body,
 		IDRefs: map[string][]string{
 			"inboundIds": inbounds, "outboundIds": outbounds, "ruleSetIds": ruleSets,
+			"endpointIds": endpoints,
 		},
 	}
 	for _, n := range append(routeNotes, dnsNotes...) {
@@ -220,6 +230,9 @@ func convertCore(b *bundle.Bundle, tags *normalize.Namer, cfg convert.Obj, name,
 	}
 	it.Set("inbounds", strconv.Itoa(len(inbounds)))
 	it.Set("outbounds", strconv.Itoa(len(outbounds)))
+	if len(endpoints) > 0 {
+		it.Set("endpoints", strconv.Itoa(len(endpoints)))
+	}
 	it.Set("rule sets", strconv.Itoa(len(ruleSets)))
 	it.AddNote("check the rules before assigning this template to a node: Xray and sing-box do not name every condition the same way, and anything with no equivalent was dropped")
 	b.Add(it)
@@ -267,6 +280,56 @@ func convertInbound(b *bundle.Bundle, tags *normalize.Namer, i int, o convert.Ob
 		it.AddNote("%s", res.Note)
 	}
 	it.AddNote("Marzban advertises this inbound through its own Hosts list (addresses, SNI, fragment); NX advertises the node's address instead, so check the generated links")
+	b.Add(it)
+	return it.ID
+}
+
+// convertWireGuard carries an Xray WireGuard inbound. PasarGuard (v5.5) builds
+// its peers from the accounts when the inbound has an address list: one peer
+// per account, keyed by the account's own WireGuard key, addressed from a pool
+// it keeps. That is exactly NX's own wireguard endpoint — every account of its
+// templates a peer — so it becomes one, and each account brings its key. The
+// addresses are NX's to derive, so every customer needs the new config.
+// One without an address list is a hand-written static-peer inbound, which
+// NX cannot reproduce on its own, and is said.
+func convertWireGuard(b *bundle.Bundle, tags *normalize.Namer, i int, o convert.Obj, rc convert.RouteContext) string {
+	tag, _ := o["tag"].(string)
+	if tag == "" {
+		tag = fmt.Sprintf("inbound-%d", i+1)
+	}
+	res := tags.Tag(tag, fmt.Sprintf("inbound-%d", i+1))
+	rc.Renamed[tag] = res.Name
+	port := 0
+	if p, ok := o["port"].(float64); ok {
+		port = int(p)
+	}
+	it := bundle.Item{
+		ID: "endpoint:" + res.Name, Kind: bundle.KindEndpoint,
+		Name: res.Name, SourceName: tag, Group: []string{"wireguard"},
+	}
+	it.Set("protocol", "wireguard")
+	it.Set("port", strconv.Itoa(port))
+	cfg, ok := convert.ManagedWireGuard(res.Name, port, objOf(o, "settings"))
+	if !ok {
+		it.Block("a WireGuard inbound with no address list is one whose peers were written by hand; NX gives every account of a template its own peer instead — rebuild it as a WireGuard endpoint in NX")
+		b.Add(it)
+		return ""
+	}
+	if cfg["private_key"] == nil {
+		it.Block("this WireGuard inbound's secretKey could not be read as a WireGuard key")
+		b.Add(it)
+		return ""
+	}
+	payload, _ := json.Marshal(map[string]any{"tag": res.Name, "type": "wireguard", "config": cfg})
+	it.Payload = payload
+	it.Set("type", "wireguard")
+	if res.Changed {
+		it.AddNote("%s", res.Note)
+	}
+	if objOf(objOf(o, "streamSettings"), "finalmask") != nil || objOf(objOf(o, "streamSettings"), "finalMask") != nil {
+		it.AddNote("the finalmask layer on this inbound was dropped — a sing-box WireGuard endpoint has no equivalent")
+	}
+	it.AddNote("every account keeps its WireGuard key, but NX derives each account's tunnel address from its id inside the same prefix, so customers need their new WireGuard config")
 	b.Add(it)
 	return it.ID
 }
@@ -400,13 +463,17 @@ type marzbanUser struct {
 	ResetStrategy   string                       `json:"data_limit_reset_strategy"`
 	Admin           *struct{ Username string }   `json:"admin"`
 	Groups          []map[string]json.RawMessage `json:"groups"` // PasarGuard
+	// Marzban stores membership as exclusions; `inbounds` is derived from
+	// them and may read "all" for a protocol that excludes everything.
+	ExcludedInbounds map[string][]string `json:"excluded_inbounds"`
+	// PasarGuard reaches inbounds through its groups.
+	GroupIDs []int64 `json:"group_ids"`
 }
 
-func readUsers(ctx context.Context, c *httpx.Client, b *bundle.Bundle, admins map[string]string, templates []string) {
-	names := normalize.NewNamer()
+func readUsers(ctx context.Context, c *httpx.Client, b *bundle.Bundle, admins map[string]string, templates []string, groups map[int64]pgGroup, pasarguard bool) {
 	const page = 500
 	offset := 0
-	seen := 0
+	var users []marzbanUser
 
 	for {
 		var resp struct {
@@ -418,28 +485,152 @@ func readUsers(ctx context.Context, c *httpx.Client, b *bundle.Bundle, admins ma
 		// Marzban ignores the parameter.
 		path := fmt.Sprintf("/api/users?offset=%d&limit=%d&load_sub=true", offset, page)
 		if err := c.Get(ctx, path, &resp); err != nil {
-			b.Note("reading accounts stopped after %d: %v", seen, err)
-			return
+			b.Note("reading accounts stopped after %d: %v", len(users), err)
+			break
 		}
 		if len(resp.Users) == 0 {
-			return
+			break
 		}
-		for _, u := range resp.Users {
-			b.Add(userItem(b, u, names, admins, templates))
-			seen++
-		}
+		users = append(users, resp.Users...)
 		offset += len(resp.Users)
 		if resp.Total > 0 && offset >= resp.Total {
-			return
+			break
 		}
 		if err := ctx.Err(); err != nil {
-			b.Note("reading accounts was cancelled after %d", seen)
-			return
+			b.Note("reading accounts was cancelled after %d", len(users))
+			break
 		}
+	}
+
+	// Membership is read whole before any account is built: an account on
+	// every inbound that carries anyone needs no filter, and only the whole
+	// list says what "every" is.
+	m := newMembership(b)
+	reach := make([]access, len(users))
+	var allIn, allEp []string
+	for i, u := range users {
+		reach[i] = m.of(u, groups, pasarguard)
+		allIn = append(allIn, reach[i].inbounds...)
+		allEp = append(allEp, reach[i].endpoints...)
+	}
+	names := normalize.NewNamer()
+	for i, u := range users {
+		b.Add(userItem(b, u, names, admins, templates, reach[i], allIn, allEp))
 	}
 }
 
-func userItem(b *bundle.Bundle, u marzbanUser, names *normalize.Namer, admins map[string]string, templates []string) bundle.Item {
+// pgGroup is one PasarGuard group: the inbounds its members reach.
+type pgGroup struct {
+	Tags     []string
+	Disabled bool
+}
+
+// readGroups lists PasarGuard's groups. Without them nobody's inbounds are
+// known, and every account arrives on every inbound — said once.
+func readGroups(ctx context.Context, c *httpx.Client, b *bundle.Bundle) map[int64]pgGroup {
+	var resp struct {
+		Groups []struct {
+			ID          int64    `json:"id"`
+			InboundTags []string `json:"inbound_tags"`
+			IsDisabled  bool     `json:"is_disabled"`
+		} `json:"groups"`
+	}
+	if err := c.Get(ctx, "/api/groups", &resp); err != nil {
+		b.Note("the groups could not be read (%v), so which inbounds each account reached is unknown — every account arrives on every inbound of its template", err)
+		return nil
+	}
+	out := make(map[int64]pgGroup, len(resp.Groups))
+	for _, g := range resp.Groups {
+		out[g.ID] = pgGroup{Tags: g.InboundTags, Disabled: g.IsDisabled}
+	}
+	return out
+}
+
+// membership maps the source panel's inbound tags onto what NX will carry.
+type membership struct {
+	inbound  map[string][]string // source tag → NX tags ("" for one not carried)
+	endpoint map[string][]string
+	byProto  map[string][]string // protocol → source tags of its inbounds
+}
+
+// access is one account's reach, as NX tags; "" is something not carried.
+type access struct {
+	inbounds, endpoints []string
+	known, none         bool // known: the source said; none: it reached nothing
+}
+
+func newMembership(b *bundle.Bundle) membership {
+	m := membership{inbound: map[string][]string{}, endpoint: map[string][]string{}, byProto: map[string][]string{}}
+	for _, it := range b.Items {
+		name := it.Name
+		if it.Severity == bundle.SevBlocked {
+			name = ""
+		}
+		switch it.Kind {
+		case bundle.KindInbound:
+			m.inbound[it.SourceName] = append(m.inbound[it.SourceName], name)
+			p := strings.ToLower(it.Detail["protocol"])
+			m.byProto[p] = append(m.byProto[p], it.SourceName)
+		case bundle.KindEndpoint:
+			m.endpoint[it.SourceName] = append(m.endpoint[it.SourceName], name)
+		}
+	}
+	return m
+}
+
+func (m membership) of(u marzbanUser, groups map[int64]pgGroup, pasarguard bool) access {
+	var src []string
+	switch {
+	case pasarguard:
+		if groups == nil {
+			return access{}
+		}
+		for _, id := range u.GroupIDs {
+			if g, ok := groups[id]; ok && !g.Disabled {
+				src = append(src, g.Tags...)
+			}
+		}
+		if len(src) == 0 {
+			return access{known: true, none: true}
+		}
+	case u.ExcludedInbounds != nil:
+		// Marzban: every inbound of each protocol the account has a
+		// credential for, less the ones it was excluded from.
+		proxies := u.Proxies
+		if len(proxies) == 0 {
+			proxies = u.ProxySettings
+		}
+		for proto := range proxies {
+			out := map[string]bool{}
+			for _, t := range u.ExcludedInbounds[proto] {
+				out[t] = true
+			}
+			for _, t := range m.byProto[strings.ToLower(proto)] {
+				if !out[t] {
+					src = append(src, t)
+				}
+			}
+		}
+	default:
+		for _, tags := range u.Inbounds {
+			src = append(src, tags...)
+		}
+	}
+	a := access{known: true}
+	for _, t := range src {
+		if names, ok := m.inbound[t]; ok {
+			a.inbounds = append(a.inbounds, names...)
+		} else if names, ok := m.endpoint[t]; ok {
+			a.endpoints = append(a.endpoints, names...)
+		} else {
+			// A tag of a core this tool did not read: not carried.
+			a.inbounds = append(a.inbounds, "")
+		}
+	}
+	return a
+}
+
+func userItem(b *bundle.Bundle, u marzbanUser, names *normalize.Namer, admins map[string]string, templates []string, reach access, allIn, allEp []string) bundle.Item {
 	c := convert.Client{
 		SourceID:      u.Username,
 		Name:          u.Username,
@@ -483,11 +674,23 @@ func userItem(b *bundle.Bundle, u marzbanUser, names *normalize.Namer, admins ma
 			c.OwnerItem = id
 		}
 	}
+	if wg := u.ProxySettings["wireguard"]; wg != nil {
+		if k, _ := wg["private_key"].(string); k != "" {
+			c.WGPrivateKey = convert.WireGuardKey(k)
+		}
+	}
 	if len(templates) > 0 {
 		c.TemplateItems = templates
+		if reach.known && !reach.none {
+			convert.LimitToInbounds(&c, reach.inbounds, allIn)
+			convert.LimitToEndpoints(&c, reach.endpoints, allEp)
+		}
 	}
 
 	it := convert.ClientItem(c, names)
+	if reach.none {
+		it.AddNote("in %s this account was in no enabled group, so it reached no inbound; NX has no way to say \"nowhere\" and puts it on every inbound of its template — switch it off or limit it in NX", b.Source.Panel)
+	}
 	it.Set("status", u.Status)
 	if tags := inboundTags(u.Inbounds); tags != "" {
 		it.Set("inbounds", tags)
@@ -534,8 +737,11 @@ func credentials(proxies map[string]map[string]any) (uuid, password, flow, metho
 			conflicts = append(conflicts, proto)
 		}
 	}
-	for _, proto := range []string{"trojan", "shadowsocks"} {
-		pw := get(proto, "password")
+	// PasarGuard keeps a Hysteria secret under auth and a MASQUE one under
+	// password; NX keys every password protocol with the one password.
+	for _, pk := range [][2]string{{"trojan", "password"}, {"shadowsocks", "password"}, {"hysteria", "auth"}, {"masque", "password"}} {
+		proto := pk[0]
+		pw := get(proto, pk[1])
 		if pw == "" {
 			continue
 		}
