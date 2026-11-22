@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nx-panel/nx-migrate/internal/target/targettest"
+
 	_ "github.com/nx-panel/nx-migrate/internal/source/sui"
 
 	_ "modernc.org/sqlite"
@@ -114,11 +116,22 @@ func fakeNX(t *testing.T) *httptest.Server {
 		{"resource": "user", "used": 0, "max": 5},
 	}}))
 	mux.HandleFunc("GET /api/nodes", ok([]any{}))
-	for _, p := range []string{"/api/users", "/api/inbounds", "/api/outbounds", "/api/endpoints",
+	for _, p := range []string{"/api/inbounds", "/api/outbounds", "/api/endpoints",
 		"/api/rule-sets", "/api/templates", "/api/admins"} {
 		mux.HandleFunc("GET "+p, ok([]any{}))
 		mux.HandleFunc("POST "+p, ok(map[string]any{"id": 7}))
 	}
+	// The preflight lists every account (none yet); the old subscription
+	// addresses read NX's own link off one.
+	mux.HandleFunc("GET /api/users", func(w http.ResponseWriter, r *http.Request) {
+		rows := []any{}
+		if r.URL.Query().Get("limit") == "1" {
+			rows = append(rows, map[string]any{"name": "ali", "subUrl": "https://sub.nx.test/sub/tok"})
+		}
+		ok(rows)(w, r)
+	})
+	mux.HandleFunc("POST /api/users", ok(map[string]any{"id": 7}))
+	targettest.New().Register(mux)
 	ts := httptest.NewServer(mux)
 	t.Cleanup(ts.Close)
 	return ts

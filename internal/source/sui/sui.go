@@ -24,6 +24,7 @@ import (
 	"github.com/nx-panel/nx-migrate/internal/source"
 	"github.com/nx-panel/nx-migrate/internal/source/dbfetch"
 	"github.com/nx-panel/nx-migrate/internal/sqlitex"
+	"github.com/nx-panel/nx-migrate/internal/sublink"
 )
 
 func init() {
@@ -73,6 +74,7 @@ func (reader) Read(ctx context.Context, opt source.Options) (*bundle.Bundle, err
 	tplItem := readBaseConfig(b, settings, inboundItem)
 	readAdmins(b, db)
 	readClients(b, db, settings, inboundItem, tplItem)
+	readSubLinks(b, settings)
 
 	return b, nil
 }
@@ -556,6 +558,31 @@ func subscriptionBase(settings map[string]string) string {
 		host += ":" + port
 	}
 	return "https://" + host + path
+}
+
+// readSubLinks adds the address s-ui published its subscriptions under. s-ui
+// has one path and chooses the format by `?format=`, which the redirect keeps.
+// A setting with no row has s-ui's default (service/setting.go).
+func readSubLinks(b *bundle.Bundle, settings map[string]string) {
+	get := func(key, def string) string {
+		if v := strings.TrimSpace(settings[key]); v != "" {
+			return v
+		}
+		return def
+	}
+	o, ok := sublink.FromURL(get("subURI", ""), "subscription", "")
+	if !ok {
+		scheme := "http"
+		if get("subCertFile", "") != "" && get("subKeyFile", "") != "" {
+			scheme = "https"
+		}
+		port, _ := strconv.Atoi(get("subPort", "2096"))
+		o = sublink.Old{Scheme: scheme, Host: strings.ToLower(get("subDomain", "")), Port: port,
+			Path: sublink.CleanPath(get("subPath", "/sub/")), Label: "subscription"}
+	}
+	sublink.Add(b, []sublink.Old{o},
+		"customers keep this link: NX answers it with a redirect to its own subscription address and the same token. Point this address (its DNS name and port) at NX before the old panel is switched off",
+		"a link ending in ?format=clash gets NX's Clash file; one ending in ?format=json gets NX's link list, because NX names its sing-box file singbox, not json")
 }
 
 func inboundIDs(raw json.RawMessage) []int64 {

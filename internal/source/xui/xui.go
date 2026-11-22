@@ -25,7 +25,7 @@ import (
 
 // WireGuardClientsArePeers: since v3.7 3x-ui keeps WireGuard peers under
 // `settings.clients` too, and its migration deleted `peers`.
-var panel = xraysql.Panel{Name: "3x-ui", WireGuardClientsArePeers: true}
+var panel = xraysql.Panel{Name: "3x-ui", WireGuardClientsArePeers: true, SubOnByDefault: true}
 
 func init() {
 	source.Register(source.Descriptor{
@@ -73,6 +73,7 @@ func (reader) Read(ctx context.Context, opt source.Options) (*bundle.Bundle, err
 	template := readXrayTemplate(b, settings, tags, inbounds, renamed)
 	xraysql.Admins(b, db, panel)
 	xraysql.Clients(b, db, settings, accounts, template)
+	xraysql.SubLinks(b, settings, panel)
 
 	return b, nil
 }

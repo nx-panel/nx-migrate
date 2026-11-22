@@ -27,6 +27,7 @@ import (
 	"github.com/nx-panel/nx-migrate/internal/convert"
 	"github.com/nx-panel/nx-migrate/internal/normalize"
 	"github.com/nx-panel/nx-migrate/internal/sqlitex"
+	"github.com/nx-panel/nx-migrate/internal/sublink"
 )
 
 // Panel is what one reader tells the shared code about its dialect.
@@ -39,6 +40,14 @@ type Panel struct {
 	// its migration deleted `peers`. `peers` is still read first, so an older
 	// database of either line reads the same.
 	WireGuardClientsArePeers bool
+	// SubOnByDefault is the panel's default for `subEnable`, which is read
+	// when the database holds no row for it: 3x-ui's subscription server is
+	// on out of the box, x-ui's is off.
+	SubOnByDefault bool
+	// JSONAlwaysOn marks a panel that serves its JSON path whenever the
+	// subscription server is on (x-ui); 3x-ui has `subJsonEnable`, off by
+	// default, and a Clash path beside it.
+	JSONAlwaysOn bool
 }
 
 // Account is one client, merged across every inbound it appears on.
@@ -590,6 +599,51 @@ func SubscriptionBase(settings map[string]string) string {
 		host += ":" + port
 	}
 	return "https://" + host + path
+}
+
+// SubLinks adds an item for every address the panel published subscription
+// links under: the links path, and the JSON and Clash paths where they are
+// served. A setting the database holds no row for has the panel's default,
+// which is what the panel itself reads.
+func SubLinks(b *bundle.Bundle, settings map[string]string, p Panel) {
+	get := func(key, def string) string {
+		if v := strings.TrimSpace(settings[key]); v != "" {
+			return v
+		}
+		return def
+	}
+	on := func(key string, def bool) bool {
+		v := strings.TrimSpace(settings[key])
+		if v == "" {
+			return def
+		}
+		return v == "true"
+	}
+	if !on("subEnable", p.SubOnByDefault) {
+		return
+	}
+	scheme := "http"
+	if get("subCertFile", "") != "" && get("subKeyFile", "") != "" {
+		scheme = "https"
+	}
+	port, _ := strconv.Atoi(get("subPort", "2096"))
+	domain := strings.ToLower(get("subDomain", ""))
+	one := func(uriKey, pathKey, defPath, label, format string) []sublink.Old {
+		if o, ok := sublink.FromURL(get(uriKey, ""), label, format); ok {
+			return []sublink.Old{o}
+		}
+		return []sublink.Old{{Scheme: scheme, Host: domain, Port: port,
+			Path: sublink.CleanPath(get(pathKey, defPath)), Label: label, Format: format}}
+	}
+	olds := one("subURI", "subPath", "/sub/", "subscription", "")
+	if p.JSONAlwaysOn || on("subJsonEnable", false) {
+		olds = append(olds, one("subJsonURI", "subJsonPath", "/json/", "JSON subscription", "xray")...)
+	}
+	if !p.JSONAlwaysOn && on("subClashEnable", false) {
+		olds = append(olds, one("subClashURI", "subClashPath", "/clash/", "Clash subscription", "clash")...)
+	}
+	sublink.Add(b, olds,
+		"customers keep this link: NX answers it with a redirect to its own subscription address and the same token. Point this address (its DNS name and port) at NX before the old panel is switched off")
 }
 
 // RuleSets creates a mirrored rule set for every geosite:/geoip: reference the

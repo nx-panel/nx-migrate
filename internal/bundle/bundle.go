@@ -30,12 +30,17 @@ const (
 	KindTemplate Kind = "template"
 	KindAdmin    Kind = "admin"
 	KindClient   Kind = "client"
+	// KindSubLink is an address the old panel published subscription links
+	// under. It is not created at a path of its own: every one chosen is a
+	// route added to NX's addresses in one change, after the accounts
+	// (package sublink).
+	KindSubLink Kind = "sublink"
 )
 
 // applyOrder is the dependency order. Anything not listed sorts last.
 var applyOrder = map[Kind]int{
 	KindRuleSet: 0, KindInbound: 1, KindOutbound: 2, KindEndpoint: 3,
-	KindTemplate: 4, KindAdmin: 5, KindClient: 6,
+	KindTemplate: 4, KindAdmin: 5, KindClient: 6, KindSubLink: 7,
 }
 
 // Order reports the apply rank of a kind.
@@ -84,6 +89,8 @@ func (k Kind) Label() string {
 		return "Admins"
 	case KindClient:
 		return "Clients"
+	case KindSubLink:
+		return "Old subscription links"
 	}
 	return string(k)
 }

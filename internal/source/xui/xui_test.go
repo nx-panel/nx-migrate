@@ -335,3 +335,13 @@ func noteMentions(it bundle.Item, sub string) bool {
 	}
 	return false
 }
+
+// The fixture's subURI is what customers hold; it arrives as an address to
+// keep answering.
+func TestSubscriptionAddressIsOffered(t *testing.T) {
+	b := read(t)
+	it := find(t, b, "sublink:sub.example.com|443|/sub|")
+	if it.Kind != bundle.KindSubLink || it.Severity == bundle.SevBlocked {
+		t.Errorf("item = %+v", it)
+	}
+}

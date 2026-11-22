@@ -119,9 +119,15 @@ khóa API.
 
 ## 5. Trước khi bắt đầu chuyển
 
-**Liên kết đăng ký.** NX cũng trả lời `/sub/{token}` bằng token cũ. Với
+**Liên kết đăng ký.** NX cũng trả lời `/sub/{token}` bằng token cũ. Địa chỉ
+đăng ký của panel cũ (máy chủ, cổng và đường dẫn, ví dụ đường dẫn ngẫu nhiên của
+3x-ui trên cổng 2096) là một dòng trong **Old subscription links**. Sau người
+dùng, quá trình chuyển thêm nó vào địa chỉ của NX dưới dạng một tuyến chuyển
+hướng: liên kết cũ được chuyển hướng tới cùng token trên địa chỉ đăng ký của
+chính NX. Các địa chỉ hiện có của NX không thay đổi, và mỗi chuyển hướng là một
+tuyến bạn có thể xoá sau. Bước này cần quản trị viên chính. Với
 **s-ui, 3x-ui, x-ui, Marzban và PasarGuard**, liên kết hiện có tiếp tục hoạt động
-khi tên miền cũ trỏ về NX, và khách hàng không cần làm gì. **Marzneshin,
+khi tên miền và cổng cũ trỏ về NX, và khách hàng không cần làm gì. **Marzneshin,
 Hiddify và Remnawave** dùng định dạng liên kết mà NX không phục vụ, nên người
 dùng của chúng sẽ nhận liên kết mới. Trình hướng dẫn nêu rõ điều này cho từng người
 dùng.

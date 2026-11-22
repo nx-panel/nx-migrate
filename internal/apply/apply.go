@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/sublink"
 	"github.com/nx-panel/nx-migrate/internal/target"
 )
 
@@ -147,9 +148,24 @@ func Run(ctx context.Context, c *target.Client, items []bundle.Item, opt Options
 
 	created := map[string]uint{} // item id → the id NX assigned
 	total := len(items)
+	// The old subscription addresses are one change to NX's addresses, made
+	// after everything else: a redirect to an account that is not there yet
+	// is a link that answers 404.
+	var links []bundle.Item
+	rest := items[:0:0]
+	for _, it := range items {
+		if it.Kind == bundle.KindSubLink {
+			links = append(links, it)
+		} else {
+			rest = append(rest, it)
+		}
+	}
+	items = rest
 
+	cancelled := false
 	for i, it := range items {
 		if err := ctx.Err(); err != nil {
+			cancelled = true
 			res.Skipped += total - i
 			send(Event{Phase: "cancelled", Status: StatusSkipped,
 				Message: fmt.Sprintf("stopped before %d of %d items", total-i, total),
@@ -198,7 +214,35 @@ func Run(ctx context.Context, c *target.Client, items []bundle.Item, opt Options
 		}
 		send(ev)
 	}
+	switch {
+	case len(links) == 0 || cancelled:
+		// A cancelled run has already counted the links among what it skipped.
+	case ctx.Err() != nil:
+		res.Skipped += len(links)
+	default:
+		applyLinks(ctx, c, links, len(items), total, &res, send)
+	}
 	return finish(res)
+}
+
+// applyLinks adds the old subscription addresses to NX's addresses.
+func applyLinks(ctx context.Context, c *target.Client, links []bundle.Item, done, total int, res *Result, send func(Event)) {
+	for _, o := range sublink.Apply(ctx, c, links) {
+		done++
+		ev := Event{Kind: o.Item.Kind, ItemID: o.Item.ID, Name: o.Item.Name, Message: o.Message, Done: done, Total: total}
+		switch o.Status {
+		case "created":
+			ev.Status = StatusCreated
+			res.Created++
+		case "exists":
+			ev.Status = StatusExists
+			res.Existing++
+		default:
+			ev.Status = StatusFailed
+			res.Failed++
+		}
+		send(ev)
+	}
 }
 
 func finish(res Result) Result {

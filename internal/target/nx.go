@@ -43,11 +43,23 @@ type Client struct {
 type Identity struct {
 	Username string `json:"username"`
 	Role     string `json:"role"`
-	Token    bool   `json:"token"`
+	// Base is the built-in role a custom role is built on ("sudo",
+	// "operator", "reseller"); Role is then the custom role's name.
+	Base  string `json:"base"`
+	Token bool   `json:"token"`
 	// MFA is set when the session was opened with a second factor. The panel
 	// asks such a session for a fresh code before a sensitive write (creating
 	// an admin is one) once ten minutes have passed since the last one.
 	MFA bool `json:"mfa"`
+}
+
+// IsMainAdmin reports whether the session is the main admin's, which is what
+// changing the panel's addresses needs.
+func (i Identity) IsMainAdmin() bool {
+	if i.Base != "" {
+		return i.Base == "sudo"
+	}
+	return i.Role == "sudo"
 }
 
 // Connect logs in (or uses the given API token) and reads back who we are.

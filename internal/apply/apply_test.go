@@ -10,7 +10,9 @@ import (
 	"testing"
 
 	"github.com/nx-panel/nx-migrate/internal/bundle"
+	"github.com/nx-panel/nx-migrate/internal/sublink"
 	"github.com/nx-panel/nx-migrate/internal/target"
+	"github.com/nx-panel/nx-migrate/internal/target/targettest"
 )
 
 // fakePanel is an NX stand-in that records what was asked of it. The applier
@@ -23,6 +25,7 @@ type fakePanel struct {
 	nodeOps  []string
 	conflict map[string]bool // path → answer 409
 	full     map[string]bool // path → answer 402 (licence)
+	ingress  *targettest.Ingress
 }
 
 type createdRow struct {
@@ -31,7 +34,7 @@ type createdRow struct {
 }
 
 func newPanel() *fakePanel {
-	return &fakePanel{conflict: map[string]bool{}, full: map[string]bool{}}
+	return &fakePanel{conflict: map[string]bool{}, full: map[string]bool{}, ingress: targettest.New()}
 }
 
 func (f *fakePanel) start(t *testing.T) *target.Client {
@@ -76,10 +79,16 @@ func (f *fakePanel) start(t *testing.T) *target.Client {
 	// Every list endpoint the preflight touches.
 	for _, p := range []string{"/api/users", "/api/inbounds", "/api/outbounds",
 		"/api/endpoints", "/api/rule-sets", "/api/templates", "/api/admins"} {
+		path := p
 		mux.HandleFunc("GET "+p, func(w http.ResponseWriter, r *http.Request) {
+			// NX's own subscription link is read off one account, once there
+			// is one: the old addresses are applied after the accounts.
+			if path == "/api/users" && r.URL.Query().Get("limit") == "1" && f.find("/api/users") != nil {
+				writeJSON(w, []map[string]any{{"name": "ali", "subUrl": "https://sub.nx.test/sub/tok"}})
+				return
+			}
 			writeJSON(w, []map[string]any{})
 		})
-		path := p
 		mux.HandleFunc("POST "+p, func(w http.ResponseWriter, r *http.Request) {
 			var body map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&body)
@@ -101,6 +110,7 @@ func (f *fakePanel) start(t *testing.T) *target.Client {
 		})
 	}
 
+	f.ingress.Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
@@ -367,5 +377,27 @@ func TestCancelledRunStopsAndSaysSo(t *testing.T) {
 	}
 	if res.Skipped != len(items) {
 		t.Errorf("skipped = %d, want %d", res.Skipped, len(items))
+	}
+}
+
+// The old subscription addresses are applied after every account, as one
+// change to NX's addresses, and are counted like any other item.
+func TestOldSubscriptionAddressesComeLast(t *testing.T) {
+	f := newPanel()
+	c := f.start(t)
+	b := testBundle()
+	b.Add(sublink.Old{Scheme: "https", Host: "sub.old.com", Port: 2096, Path: "/k3j9x0q2"}.Item())
+	b.Validate()
+	items, _ := Select(b, map[string]bool{"client:1": true, "sublink:sub.old.com|2096|/k3j9x0q2|": true})
+	res := Run(context.Background(), c, items, Options{}, nil)
+	if res.Failed != 0 {
+		t.Fatalf("failures: %+v", res.Events)
+	}
+	last := res.Events[len(res.Events)-1]
+	if last.Kind != bundle.KindSubLink || last.Status != StatusCreated || last.Done != last.Total {
+		t.Fatalf("last event = %+v", last)
+	}
+	if f.ingress.Route("old-sub-sub-old-com-2096-k3j9x0q2") == nil || f.ingress.Confirms != 1 {
+		t.Errorf("the route was not added and confirmed: %v", f.ingress.Routes)
 	}
 }

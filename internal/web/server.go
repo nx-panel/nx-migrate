@@ -450,6 +450,7 @@ func (s *Server) handlePlan(w http.ResponseWriter, r *http.Request) {
 	if connected {
 		warnings = append(warnings, licenceWarnings(pre, counts)...)
 		warnings = append(warnings, collisionWarnings(pre, names)...)
+		warnings = append(warnings, subLinkWarnings(pre, counts)...)
 	}
 	addedNames := make([]string, 0, len(added))
 	for _, id := range added {
@@ -471,6 +472,22 @@ func (s *Server) handlePlan(w http.ResponseWriter, r *http.Request) {
 		"pauseDefault": pre.PauseByDefault(),
 		"users":        pre.Users,
 	})
+}
+
+// subLinkWarnings says what the old subscription addresses do to NX before
+// they do it: they are the one part of a run that changes the panel's own
+// addresses, and only the main admin may.
+func subLinkWarnings(pre target.Preflight, counts map[bundle.Kind]int) []string {
+	n := counts[bundle.KindSubLink]
+	if n == 0 {
+		return nil
+	}
+	if !pre.Identity.IsMainAdmin() {
+		return []string{fmt.Sprintf(
+			"%d old subscription address(es) are ticked, but only NX's main admin can add routes to the panel's addresses: connect as the main admin, or untick them and give customers their NX links", n)}
+	}
+	return []string{fmt.Sprintf(
+		"%d old subscription address(es) will be added to NX's addresses as redirects in front of its own routes, after the accounts. Nothing NX already has is changed, and each redirect is a route you can delete later", n)}
 }
 
 // licenceWarnings compares the accounts about to be created against the

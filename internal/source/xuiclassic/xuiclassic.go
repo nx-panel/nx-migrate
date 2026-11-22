@@ -27,7 +27,7 @@ import (
 // WireGuardClientsArePeers: this line stores WireGuard peers under
 // `settings.clients` and only renames them to `peers` when it writes the Xray
 // config, so a reader looking for `peers` would find an endpoint with none.
-var panel = xraysql.Panel{Name: "x-ui", WireGuardClientsArePeers: true}
+var panel = xraysql.Panel{Name: "x-ui", WireGuardClientsArePeers: true, JSONAlwaysOn: true}
 
 func init() {
 	source.Register(source.Descriptor{
@@ -82,6 +82,7 @@ func (reader) Read(ctx context.Context, opt source.Options) (*bundle.Bundle, err
 	template := readConfiguration(b, db, settings, tags, inbounds, renamed)
 	xraysql.Admins(b, db, panel)
 	xraysql.Clients(b, db, settings, accounts, template)
+	xraysql.SubLinks(b, settings, panel)
 
 	return b, nil
 }

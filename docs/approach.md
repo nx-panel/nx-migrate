@@ -322,6 +322,29 @@ subscription URL is a single path segment:
 For the ✅ rows, the whole migration is: import, then repoint the old hostname
 at NX. Customers change nothing.
 
+**The rest of the link (2026-11-21).** The token is half of a link; the other
+half is the address in front of it, and that one rarely matches NX's
+`{address}/sub/`. 3x-ui writes a random `subPath` (and `subJsonPath`,
+`subClashPath`) on a fresh install and serves them on port 2096; s-ui and x-ui
+keep whatever path the operator chose; Marzban has `XRAY_SUBSCRIPTION_PATH`.
+NX's own addresses are not to change for this, so each old address is an item
+of kind `sublink` (package `internal/sublink`) and applying it is **one change
+to NX's ingress through its public API** — no panel work, which keeps ruling
+2: a `redirect` route, put in front of the existing ones, taking only the old
+host and path prefix, `to` NX's own subscription base (read off an account's
+`subUrl`, so a public address, subscription domain and prefix are already in
+it), `keepPath` on, code 302. `https://sub.old.com:2096/k3j9x0q2/abc` answers
+`302 → https://sub.nx.com/sub/abc`; a JSON or Clash path adds `?format=`.
+The applier asks `POST /api/ingress/test` first, so an address NX already
+answers is left alone, a path NX itself serves (`/api`, `/sub` on its own
+host) is refused, and the draft is checked for a redirect onto NX's own
+address before the `PUT`; the change is then confirmed with the one-time token
+the `PUT` answered with, or the panel would put it back after 120 s. A reverse
+proxy (upstream route) to the panel itself is not an option: the panel answers
+a request that already went through its own upstream with 508. Verified on a
+local nx-panel 0.1.2: the redirect, `?format=xray`, a second run finding its
+routes, and the panel's pages unchanged on every other host.
+
 The ❌ and ⚠️ rows would each need a legacy compatibility route in the panel.
 **Ruling 2 says no panel work, so those three sources accept that subscription
 links change** — the import still carries credentials, quota and expiry, and

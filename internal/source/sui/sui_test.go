@@ -294,3 +294,20 @@ func contains(s, sub string) bool {
 		return false
 	})()
 }
+
+func TestSubscriptionAddressIsOffered(t *testing.T) {
+	b := read(t)
+	it := find(t, b, "sublink:sub.example.com|443|/sub|")
+	if it.Kind != bundle.KindSubLink || !notesMention(it, "format=json") {
+		t.Errorf("item = %+v", it)
+	}
+}
+
+func notesMention(it bundle.Item, sub string) bool {
+	for _, n := range it.Notes {
+		if contains(n, sub) {
+			return true
+		}
+	}
+	return false
+}

@@ -89,6 +89,10 @@ func TestPasarGuardShape(t *testing.T) {
 	if ali.IDRef["adminId"] != "admin:seller" || len(ali.IDRefs["templateIds"]) != 1 {
 		t.Errorf("owner/template refs = %v / %v", ali.IDRef, ali.IDRefs)
 	}
+	// The address before every account's token is offered as one item.
+	if it, ok := byID["sublink:sub.example.com|443|/sub|"]; !ok || it.Kind != bundle.KindSubLink {
+		t.Errorf("the subscription address was not offered; items: %v", keys(byID))
+	}
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

@@ -27,6 +27,7 @@ import (
 	"github.com/nx-panel/nx-migrate/internal/httpx"
 	"github.com/nx-panel/nx-migrate/internal/normalize"
 	"github.com/nx-panel/nx-migrate/internal/source"
+	"github.com/nx-panel/nx-migrate/internal/sublink"
 )
 
 func init() {
@@ -514,9 +515,18 @@ func readUsers(ctx context.Context, c *httpx.Client, b *bundle.Bundle, admins ma
 		allEp = append(allEp, reach[i].endpoints...)
 	}
 	names := normalize.NewNamer()
+	var olds []sublink.Old
 	for i, u := range users {
 		b.Add(userItem(b, u, names, admins, templates, reach[i], allIn, allEp))
+		if o, ok := sublink.FromLink(u.SubscriptionURL, "subscription"); ok {
+			olds = append(olds, o)
+		}
 	}
+	// Every account's link names the same address unless the panel's prefix
+	// was changed while it had customers; each distinct one is an item.
+	sublink.Add(b, olds,
+		"customers keep this link: NX answers it with a redirect to its own subscription address and the same token. Point this address (its DNS name and port) at NX before the old panel is switched off",
+		"a link that names its client type keeps it, and NX understands singbox, sing-box, clash, xray, plain and v2ray there; any other name (clash-meta, v2ray-json, outline, …) gets NX's link list")
 }
 
 // pgGroup is one PasarGuard group: the inbounds its members reach.
