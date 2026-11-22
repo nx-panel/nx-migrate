@@ -13,8 +13,10 @@ repositories on 2026-09-14, not remembered.
 1. **Acquisition: database/backup file primary, source REST API secondary.** §2.
 2. **No panel-side work.** `nx-migrate` uses only the panel APIs that exist
    today. No `POST /api/users/import`, and no legacy subscription
-   compatibility routes. The consequences are written into §4 and §5.1 — the
-   loader works around both, it does not wait for them.
+   compatibility routes **in the panel's code**. The consequences are written
+   into §4 and §5.1 — the loader works around both, it does not wait for them.
+   (Owner, 2026-11-22: the ruling is about panel code. Redirect routes the
+   tool adds to an operator's ingress through the public API do not break it.)
 3. **Build order: s-ui → 3x-ui → Marzban → Hiddify → PasarGuard → Remnawave →
    Marzneshin**, and the classic **x-ui** line added after them on 2026-09-14.
 4. **Public repository**, like `nx-openvpn`. It holds no panel secrets and
@@ -345,7 +347,65 @@ a request that already went through its own upstream with 508. Verified on a
 local nx-panel 0.1.2: the redirect, `?format=xray`, a second run finding its
 routes, and the panel's pages unchanged on every other host.
 
+**What the first review of it found (2026-11-22).** The target is read off an
+account on NX's *shared* address: accounts whose owner has a canonical
+subscription route of their own (a reseller's domain) are passed over, and a
+wildcard subscription domain — a name per subscriber — is refused, since one
+redirect would put every customer on one subscriber's name. A private, loopback
+or single-label host (a Docker name) is refused as a target too. A hostless
+redirect excludes every host a route of NX's names — and not the target's own
+host for being that: on NX replacing the old panel in place, that is the IP
+the old links name, and the draft test already proves NX's own links never
+meet a redirect.
+"Already answered" means NX's subscription service sees exactly
+`/sub/{token}`: an old `/sub/vpn/` is not NX's and is redirected. The route
+test sends the TLS handshake for an https link, so a listener refusing a name
+it holds no certificate for fails the item before the change; the change's own
+answer is read for `certificate`, `shadowed` and `restart`, and a change the
+panel says would shadow one of its own routes is left unconfirmed, so the panel
+puts it back. Route names end in a hash of the address. The `PUT` needs a fresh
+second-factor code like an admin does, so the wizard asks for one whenever old
+links are ticked; a run longer than the code's ten minutes fails the links
+alone, which a second run with only them ticked finishes.
+
+The second review (same day) added: hosts are normalised as a client sends
+them (punycode for an internationalised name, no trailing dot) and a
+`subDomain` or `subURI` setting that is not one is reported, not routed —
+the panel's route test does not validate, so one bad host used to sink the
+whole `PUT`; the table is read again and compared before the `PUT`, since the
+panel takes a whole-table replace with no version check; a stop between the
+`PUT` and the confirmation leaves the change unconfirmed (it goes back) and
+the items skipped; listeners that did not come up are not routed on, and a
+scheme that does not match the listener's TLS is said; a catch-all decoy
+(static, redirect, canned) is not something a redirect takes from NX. Two
+consequences of adding any route are said in the plan rather than avoided,
+since they are the panel's: NX's ingress is no longer "shaped", so its
+Settings page and an admin's subscription domain stop editing the addresses
+until the redirects are removed, and a self-signed panel certificate is
+reissued with the old names added, which survives a change that is put back.
+
+The third review (same day): a run stopped while the addresses are tested
+skips every address without an outcome, planned ones included; once the `PUT`
+has answered, the confirmation runs to its end whatever happens to the run, so
+what is reported is what the panel holds; an IP host is kept as written (the
+panel matches spellings) and an ASCII host is checked by the panel's own rules,
+underscores and double hyphens allowed; a host some route names by itself is
+never taken for a minted one; an empty scope list is an unrestricted session;
+an old path that is one of the panel's own pages is not taken; https links sent
+to an http NX address say so.
+
+**Off by default (owner, 2026-11-22).** Because a redirect changes NX's own
+addresses — the Settings page and an admin's subscription domain stop editing
+them, and a self-signed panel certificate gains the old names — the old-link
+items are left unticked in the wizard and carry a note saying so; ticking them
+is the operator's choice, and the plan warns that it can upset NX's other
+settings and that setting the redirects up on NX's Ingress page is the better
+way.
+
 The ❌ and ⚠️ rows would each need a legacy compatibility route in the panel.
+(Remnawave's `/api/sub/{shortUuid}` is a one-segment token under a fixed
+prefix, which the ingress redirect above could cover now that `shortUuid` is
+carried; it is not built — an open option, not a ruling.)
 **Ruling 2 says no panel work, so those three sources accept that subscription
 links change** — the import still carries credentials, quota and expiry, and
 the operator has to re-deliver links to those customers. The tool must say so
@@ -582,7 +642,10 @@ internal/source/xraysql/   what the two x-ui lines share: the account merge,
 internal/source/dbfetch/   the API channel for the three file-backed panels:
                            log in, download the panel's own backup, read it,
                            delete it
-internal/target/           the NX client: login, preflight, create
+internal/target/           the NX client: login, preflight, create, and the
+                           ingress (read, route test, replace, confirm)
+internal/sublink/          the old subscription addresses: one item each, and
+                           the redirect routes they become in NX's ingress
 internal/apply/            ordering, id late-binding, node pause/resume
 internal/web/              the wizard: server, guards, upload, SSE, assets/
 ```

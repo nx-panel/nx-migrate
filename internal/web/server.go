@@ -482,12 +482,17 @@ func subLinkWarnings(pre target.Preflight, counts map[bundle.Kind]int) []string 
 	if n == 0 {
 		return nil
 	}
-	if !pre.Identity.IsMainAdmin() {
+	if !pre.Identity.CanChangeIngress() {
 		return []string{fmt.Sprintf(
-			"%d old subscription address(es) are ticked, but only NX's main admin can add routes to the panel's addresses: connect as the main admin, or untick them and give customers their NX links", n)}
+			"%d old subscription address(es) are ticked, but this connection may not change NX's addresses (that needs the main admin, and the ingress:read and ingress:write scopes on an API token): connect as the main admin, or untick them and give customers their NX links", n)}
 	}
 	return []string{fmt.Sprintf(
-		"%d old subscription address(es) will be added to NX's addresses as redirects in front of its own routes, after the accounts. Nothing NX already has is changed, and each redirect is a route you can delete later", n)}
+		"%d old subscription address(es) are ticked: the run will add them to NX's addresses as redirects in front of its own routes, after the accounts. "+
+			"This can upset NX's other settings: once its addresses hold a route of their own, its Settings page and an admin's subscription domain "+
+			"no longer edit them (the Ingress page does), and a self-signed panel certificate gains the old names. Setting the redirects up yourself "+
+			"on NX's Ingress page is the better way; untick them to do that. Each takes only the old path, on the old host — or, for a panel that "+
+			"had no domain, on every host no route of NX's names — a change NX says would take anything of its own is not confirmed, and each "+
+			"redirect is a route you can delete later", n)}
 }
 
 // licenceWarnings compares the accounts about to be created against the
@@ -549,7 +554,8 @@ type applyRequest struct {
 	Selected   []string `json:"selected"`
 	PauseNodes *bool    `json:"pauseNodes"`
 	// Code is a fresh authenticator code, presented before the run so a
-	// two-factor session may create admins.
+	// two-factor session may create admins and change NX's addresses (the
+	// old subscription links).
 	Code string `json:"code"`
 }
 

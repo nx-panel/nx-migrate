@@ -372,10 +372,18 @@ let tree = [], selected = new Set(), leaves = [], sourceInfo = null, bundleNotes
 async function loadTree() {
   const data = await api("/api/tree");
   adoptBundle(data);
-  // Everything that can move is ticked to begin with: the common case is
-  // "move it all", and unticking is easier than hunting.
-  selected = new Set(leaves.filter((l) => l.item.severity !== "blocked").map((l) => l.key));
+  selected = defaultSelection();
   renderTree();
+}
+
+// Everything that can move is ticked to begin with: the common case is
+// "move it all", and unticking is easier than hunting. The old subscription
+// addresses are the exception: they change NX's own addresses, which can
+// upset its other settings, so the operator ticks them by choice.
+function defaultSelection() {
+  return new Set(leaves
+    .filter((l) => l.item.severity !== "blocked" && l.item.kind !== "sublink")
+    .map((l) => l.key));
 }
 
 function adoptBundle(data) {
@@ -691,9 +699,11 @@ async function refreshPlan() {
   }
   for (const warn of data.warnings || []) box.append(el("div", "warn-box", warn));
   // A two-factor session is asked for a fresh code before the panel creates an
-  // admin; asking here beats a 428 halfway through the run.
+  // admin or changes its addresses (the old subscription links); asking here
+  // beats a 428 halfway through the run.
   const mfa = !!(lastPreflight && lastPreflight.preflight.identity.mfa);
-  $("#confirm-box").hidden = !(mfa && (data.counts || {}).admin > 0);
+  const counts = data.counts || {};
+  $("#confirm-box").hidden = !(mfa && (counts.admin > 0 || counts.sublink > 0));
   $("#go").disabled = data.total === 0;
 }
 
@@ -838,7 +848,7 @@ async function resume() {
     const data = await api("/api/tree");
     if (!data.tree || !data.tree.length) return;
     adoptBundle(data);
-    selected = new Set(leaves.filter((l) => l.item.severity !== "blocked").map((l) => l.key));
+    selected = defaultSelection();
     renderTree();
     maxStep = 2;
     goto(2);

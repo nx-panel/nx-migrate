@@ -83,7 +83,7 @@ func (f *fakePanel) start(t *testing.T) *target.Client {
 		mux.HandleFunc("GET "+p, func(w http.ResponseWriter, r *http.Request) {
 			// NX's own subscription link is read off one account, once there
 			// is one: the old addresses are applied after the accounts.
-			if path == "/api/users" && r.URL.Query().Get("limit") == "1" && f.find("/api/users") != nil {
+			if path == "/api/users" && r.URL.Query().Get("fields") == "" && f.find("/api/users") != nil {
 				writeJSON(w, []map[string]any{{"name": "ali", "subUrl": "https://sub.nx.test/sub/tok"}})
 				return
 			}
@@ -397,7 +397,7 @@ func TestOldSubscriptionAddressesComeLast(t *testing.T) {
 	if last.Kind != bundle.KindSubLink || last.Status != StatusCreated || last.Done != last.Total {
 		t.Fatalf("last event = %+v", last)
 	}
-	if f.ingress.Route("old-sub-sub-old-com-2096-k3j9x0q2") == nil || f.ingress.Confirms != 1 {
+	if f.ingress.Route(sublink.Old{Scheme: "https", Host: "sub.old.com", Port: 2096, Path: "/k3j9x0q2"}.RouteName()) == nil || f.ingress.Confirms != 1 {
 		t.Errorf("the route was not added and confirmed: %v", f.ingress.Routes)
 	}
 }

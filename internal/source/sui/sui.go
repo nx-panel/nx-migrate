@@ -539,49 +539,31 @@ func credentials(raw json.RawMessage) (uuid, password, flow, method string, conf
 }
 
 // subscriptionBase reconstructs the old subscription address so the review
-// table can show an operator the link their customers already hold.
+// table can show an operator the link their customers already hold; it is
+// the address the old-link item names.
 func subscriptionBase(settings map[string]string) string {
-	if uri := strings.TrimSpace(settings["subURI"]); uri != "" {
-		return strings.TrimRight(uri, "/") + "/"
-	}
-	domain := strings.TrimSpace(settings["subDomain"])
-	if domain == "" {
+	o, err := subLinkOf(settings)
+	if err != nil {
 		return ""
 	}
-	path := settings["subPath"]
-	if path == "" {
-		path = "/sub/"
-	}
-	port := settings["subPort"]
-	host := domain
-	if port != "" && port != "443" {
-		host += ":" + port
-	}
-	return "https://" + host + path
+	return o.Base()
 }
 
-// readSubLinks adds the address s-ui published its subscriptions under. s-ui
-// has one path and chooses the format by `?format=`, which the redirect keeps.
-// A setting with no row has s-ui's default (service/setting.go).
+// subLinkOf is the address s-ui published its subscriptions under. A setting
+// with no row has s-ui's default (service/setting.go).
+func subLinkOf(settings map[string]string) (sublink.Old, error) {
+	return sublink.Settings(settings).Address("subURI", "subPath", "/sub/", "subscription", "")
+}
+
+// readSubLinks adds that address. s-ui has one path and chooses the format
+// by `?format=`, which the redirect keeps.
 func readSubLinks(b *bundle.Bundle, settings map[string]string) {
-	get := func(key, def string) string {
-		if v := strings.TrimSpace(settings[key]); v != "" {
-			return v
-		}
-		return def
+	o, err := subLinkOf(settings)
+	if err != nil {
+		b.Note("the old subscription address is not offered: %v", err)
+		return
 	}
-	o, ok := sublink.FromURL(get("subURI", ""), "subscription", "")
-	if !ok {
-		scheme := "http"
-		if get("subCertFile", "") != "" && get("subKeyFile", "") != "" {
-			scheme = "https"
-		}
-		port, _ := strconv.Atoi(get("subPort", "2096"))
-		o = sublink.Old{Scheme: scheme, Host: strings.ToLower(get("subDomain", "")), Port: port,
-			Path: sublink.CleanPath(get("subPath", "/sub/")), Label: "subscription"}
-	}
-	sublink.Add(b, []sublink.Old{o},
-		"customers keep this link: NX answers it with a redirect to its own subscription address and the same token. Point this address (its DNS name and port) at NX before the old panel is switched off",
+	sublink.Add(b, []sublink.Old{o}, sublink.KeepNote,
 		"a link ending in ?format=clash gets NX's Clash file; one ending in ?format=json gets NX's link list, because NX names its sing-box file singbox, not json")
 }
 

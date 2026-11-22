@@ -413,7 +413,7 @@ func Admins(b *bundle.Bundle, db *sqlitex.DB, p Panel) {
 
 // Clients joins the accounts gathered out of the inbounds with the
 // `client_traffics` counters and emits one NX user each.
-func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accounts Accounts, templateItem string) {
+func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accounts Accounts, templateItem string, p Panel) {
 	traffic := map[string]sqlitex.Row{}
 	rows, err := db.Select("client_traffics", []string{
 		"id", "inbound_id", "enable", "email", "up", "down", "expiry_time",
@@ -430,7 +430,7 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 	}
 
 	names := normalize.NewNamer()
-	subBase := SubscriptionBase(settings)
+	subBase := SubscriptionBase(settings, p)
 	// The inbounds that carry anybody are what an account is measured
 	// against: one that serves no client in the old panel (a SOCKS inbound
 	// with its own accounts, say) would otherwise put a filter on everyone.
@@ -580,25 +580,19 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 }
 
 // SubscriptionBase reconstructs the old subscription address so the review
-// table can show the link a customer already holds. Both panels spell these
-// settings the same way.
-func SubscriptionBase(settings map[string]string) string {
-	if uri := strings.TrimSpace(settings["subURI"]); uri != "" {
-		return strings.TrimRight(uri, "/") + "/"
-	}
-	domain := strings.TrimSpace(settings["subDomain"])
-	if domain == "" {
+// table can show the link a customer already holds; it is the address the
+// old-link item names, and "" when the panel published none (its
+// subscription server off). Both panels spell these settings the same way.
+func SubscriptionBase(settings map[string]string, p Panel) string {
+	s := sublink.Settings(settings)
+	if !s.On("subEnable", p.SubOnByDefault) {
 		return ""
 	}
-	path := settings["subPath"]
-	if path == "" {
-		path = "/sub/"
+	o, err := s.Address("subURI", "subPath", "/sub/", "subscription", "")
+	if err != nil {
+		return ""
 	}
-	host := domain
-	if port := settings["subPort"]; port != "" && port != "443" {
-		host += ":" + port
-	}
-	return "https://" + host + path
+	return o.Base()
 }
 
 // SubLinks adds an item for every address the panel published subscription
@@ -606,44 +600,27 @@ func SubscriptionBase(settings map[string]string) string {
 // served. A setting the database holds no row for has the panel's default,
 // which is what the panel itself reads.
 func SubLinks(b *bundle.Bundle, settings map[string]string, p Panel) {
-	get := func(key, def string) string {
-		if v := strings.TrimSpace(settings[key]); v != "" {
-			return v
-		}
-		return def
-	}
-	on := func(key string, def bool) bool {
-		v := strings.TrimSpace(settings[key])
-		if v == "" {
-			return def
-		}
-		return v == "true"
-	}
-	if !on("subEnable", p.SubOnByDefault) {
+	s := sublink.Settings(settings)
+	if !s.On("subEnable", p.SubOnByDefault) {
 		return
 	}
-	scheme := "http"
-	if get("subCertFile", "") != "" && get("subKeyFile", "") != "" {
-		scheme = "https"
-	}
-	port, _ := strconv.Atoi(get("subPort", "2096"))
-	domain := strings.ToLower(get("subDomain", ""))
-	one := func(uriKey, pathKey, defPath, label, format string) []sublink.Old {
-		if o, ok := sublink.FromURL(get(uriKey, ""), label, format); ok {
-			return []sublink.Old{o}
+	var olds []sublink.Old
+	add := func(uriKey, pathKey, defPath, label, format string) {
+		o, err := s.Address(uriKey, pathKey, defPath, label, format)
+		if err != nil {
+			b.Note("the old %s address is not offered: %v", label, err)
+			return
 		}
-		return []sublink.Old{{Scheme: scheme, Host: domain, Port: port,
-			Path: sublink.CleanPath(get(pathKey, defPath)), Label: label, Format: format}}
+		olds = append(olds, o)
 	}
-	olds := one("subURI", "subPath", "/sub/", "subscription", "")
-	if p.JSONAlwaysOn || on("subJsonEnable", false) {
-		olds = append(olds, one("subJsonURI", "subJsonPath", "/json/", "JSON subscription", "xray")...)
+	add("subURI", "subPath", "/sub/", "subscription", "")
+	if p.JSONAlwaysOn || s.On("subJsonEnable", false) {
+		add("subJsonURI", "subJsonPath", "/json/", "JSON subscription", "xray")
 	}
-	if !p.JSONAlwaysOn && on("subClashEnable", false) {
-		olds = append(olds, one("subClashURI", "subClashPath", "/clash/", "Clash subscription", "clash")...)
+	if !p.JSONAlwaysOn && s.On("subClashEnable", false) {
+		add("subClashURI", "subClashPath", "/clash/", "Clash subscription", "clash")
 	}
-	sublink.Add(b, olds,
-		"customers keep this link: NX answers it with a redirect to its own subscription address and the same token. Point this address (its DNS name and port) at NX before the old panel is switched off")
+	sublink.Add(b, olds, sublink.KeepNote)
 }
 
 // RuleSets creates a mirrored rule set for every geosite:/geoip: reference the

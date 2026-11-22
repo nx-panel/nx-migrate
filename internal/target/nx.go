@@ -51,15 +51,38 @@ type Identity struct {
 	// asks such a session for a fresh code before a sensitive write (creating
 	// an admin is one) once ten minutes have passed since the last one.
 	MFA bool `json:"mfa"`
+	// Scopes are what the session may reach; a scoped API token or a
+	// narrowed role holds fewer than its base. Empty is unrestricted, or a
+	// panel that does not say.
+	Scopes []string `json:"scopes"`
 }
 
-// IsMainAdmin reports whether the session is the main admin's, which is what
-// changing the panel's addresses needs.
-func (i Identity) IsMainAdmin() bool {
-	if i.Base != "" {
-		return i.Base == "sudo"
+// CanChangeIngress reports whether the session may read and change the
+// panel's addresses: the main admin's role, and both ingress scopes when the
+// panel lists scopes.
+func (i Identity) CanChangeIngress() bool {
+	base := i.Base
+	if base == "" {
+		base = i.Role
 	}
-	return i.Role == "sudo"
+	if base != "sudo" {
+		return false
+	}
+	// The panel lists an unrestricted session's scopes as [] — a legacy
+	// token with none stored — and the main admin's as every scope there is.
+	if len(i.Scopes) == 0 {
+		return true
+	}
+	var read, write bool
+	for _, s := range i.Scopes {
+		switch s {
+		case "ingress:read":
+			read = true
+		case "ingress:write":
+			write = true
+		}
+	}
+	return read && write
 }
 
 // Connect logs in (or uses the given API token) and reads back who we are.

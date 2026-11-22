@@ -219,6 +219,9 @@ func Run(ctx context.Context, c *target.Client, items []bundle.Item, opt Options
 		// A cancelled run has already counted the links among what it skipped.
 	case ctx.Err() != nil:
 		res.Skipped += len(links)
+		send(Event{Phase: "cancelled", Status: StatusSkipped,
+			Message: fmt.Sprintf("stopped before %d of %d items", len(links), total),
+			Done:    len(items), Total: total})
 	default:
 		applyLinks(ctx, c, links, len(items), total, &res, send)
 	}
@@ -231,17 +234,24 @@ func applyLinks(ctx context.Context, c *target.Client, links []bundle.Item, done
 		done++
 		ev := Event{Kind: o.Item.Kind, ItemID: o.Item.ID, Name: o.Item.Name, Message: o.Message, Done: done, Total: total}
 		switch o.Status {
-		case "created":
+		case sublink.Created:
 			ev.Status = StatusCreated
 			res.Created++
-		case "exists":
+		case sublink.Exists:
 			ev.Status = StatusExists
 			res.Existing++
+		case sublink.Skipped:
+			ev.Status = StatusSkipped
+			res.Skipped++
 		default:
 			ev.Status = StatusFailed
 			res.Failed++
 		}
 		send(ev)
+	}
+	if ctx.Err() != nil {
+		send(Event{Phase: "cancelled", Status: StatusSkipped, Message: "stopped while changing NX's addresses",
+			Done: done, Total: total})
 	}
 }
 

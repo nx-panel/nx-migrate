@@ -81,7 +81,7 @@ func (reader) Read(ctx context.Context, opt source.Options) (*bundle.Bundle, err
 	inbounds := xraysql.Inbounds(b, db, panel, tags, accounts, renamed)
 	template := readConfiguration(b, db, settings, tags, inbounds, renamed)
 	xraysql.Admins(b, db, panel)
-	xraysql.Clients(b, db, settings, accounts, template)
+	xraysql.Clients(b, db, settings, accounts, template, panel)
 	xraysql.SubLinks(b, settings, panel)
 
 	return b, nil

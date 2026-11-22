@@ -125,7 +125,12 @@ khóa API.
 dùng, quá trình chuyển thêm nó vào địa chỉ của NX dưới dạng một tuyến chuyển
 hướng: liên kết cũ được chuyển hướng tới cùng token trên địa chỉ đăng ký của
 chính NX. Các địa chỉ hiện có của NX không thay đổi, và mỗi chuyển hướng là một
-tuyến bạn có thể xoá sau. Bước này cần quản trị viên chính. Với
+tuyến bạn có thể xoá sau. Bước này cần quản trị viên chính. Các dòng này **không
+được chọn sẵn**: chúng thay đổi địa chỉ của chính NX, điều có thể làm xáo trộn
+các thiết lập khác (trang Settings và tên miền đăng ký của quản trị viên không
+còn chỉnh được địa chỉ, chứng chỉ tự ký của panel nhận thêm tên cũ). Tốt hơn là
+tự thiết lập chuyển hướng trong trang Ingress của NX; chỉ chọn chúng nếu bạn
+muốn công cụ làm việc này. Với
 **s-ui, 3x-ui, x-ui, Marzban và PasarGuard**, liên kết hiện có tiếp tục hoạt động
 khi tên miền và cổng cũ trỏ về NX, và khách hàng không cần làm gì. **Marzneshin,
 Hiddify và Remnawave** dùng định dạng liên kết mà NX không phục vụ, nên người
@@ -160,9 +165,9 @@ không trở thành người dùng NX.
 
 **Mật khẩu quản trị viên không thể chuyển.** Quản trị viên được nhập sẽ nhận một mật
 khẩu được tạo, chỉ hiển thị một lần ở trang cuối và không được lưu ở đâu cả, vì vậy
-hãy ghi lại. Nếu bạn đăng nhập bằng xác thực hai bước và có chọn quản trị viên,
-trang xem trước sẽ yêu cầu một mã mới, vì NX xác nhận việc tạo quản trị viên
-bằng mã.
+hãy ghi lại. Nếu bạn đăng nhập bằng xác thực hai bước và có chọn quản trị viên
+hoặc các địa chỉ đăng ký cũ, trang xem trước sẽ yêu cầu một mã mới, vì NX xác
+nhận bằng mã cả việc tạo quản trị viên lẫn việc thay đổi địa chỉ của nó.
 
 **Sau khi chuyển.** Inbound, outbound và quy tắc đã nhập được gom vào một mẫu
 NX. Hãy gán mẫu đó cho các node trong NX, rồi kiểm tra rằng node kết nối

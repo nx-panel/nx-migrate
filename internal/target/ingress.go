@@ -1,9 +1,11 @@
 package target
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -42,8 +44,25 @@ type IngressListener struct {
 	// actually listened on when ListenPort is left to the start address.
 	State *struct {
 		Address string `json:"address"`
+		// TLS is whether it came up serving TLS.
+		TLS bool `json:"tls"`
+		// Error is what kept it from binding or from loading its
+		// certificate.
+		Error string `json:"error"`
 	} `json:"state"`
 }
+
+// Failed is why the running listener did not come up, "" when it did or
+// when the panel does not say.
+func (l IngressListener) Failed() string {
+	if l.State == nil {
+		return ""
+	}
+	return strings.TrimSpace(l.State.Error)
+}
+
+// ServesTLS reports whether the running listener serves TLS.
+func (l IngressListener) ServesTLS() bool { return l.State != nil && l.State.TLS }
 
 // On reports whether the listener serves anything.
 func (l IngressListener) On() bool { return l.Enabled == nil || *l.Enabled }
@@ -59,24 +78,133 @@ func (l IngressListener) Address() string {
 	return ""
 }
 
+// Same reports whether two reads of the table hold the same table: its
+// listeners, routes and fallbacks, row for row. How the listeners are
+// running is not the table and is not compared.
+func (in *Ingress) Same(other *Ingress) bool {
+	for _, k := range []string{"routes", "fallbacks"} {
+		if !bytes.Equal(compact(in.Doc[k]), compact(other.Doc[k])) {
+			return false
+		}
+	}
+	return bytes.Equal(listenerRows(in.Doc["listeners"]), listenerRows(other.Doc["listeners"]))
+}
+
+func compact(raw json.RawMessage) []byte {
+	var b bytes.Buffer
+	if json.Compact(&b, raw) != nil {
+		return raw
+	}
+	return b.Bytes()
+}
+
+// listenerRows are the listeners without their running state.
+func listenerRows(raw json.RawMessage) []byte {
+	var rows []map[string]json.RawMessage
+	if json.Unmarshal(raw, &rows) != nil {
+		return compact(raw)
+	}
+	for _, r := range rows {
+		delete(r, "state")
+	}
+	out, _ := json.Marshal(rows)
+	return out
+}
+
+// ingressRoute is what this tool needs to know of a route row.
+type ingressRoute struct {
+	Name      string   `json:"name"`
+	Hosts     []string `json:"hosts"`
+	Service   string   `json:"service"`
+	AdminID   uint     `json:"adminId"`
+	Canonical bool     `json:"canonical"`
+}
+
+func (in *Ingress) routes() []ingressRoute {
+	out := make([]ingressRoute, 0, len(in.Routes))
+	for _, raw := range in.Routes {
+		var r ingressRoute
+		_ = json.Unmarshal(raw, &r)
+		out = append(out, r)
+	}
+	return out
+}
+
 // RouteNames lists the routes' names, lower-cased.
 func (in *Ingress) RouteNames() map[string]bool {
 	out := map[string]bool{}
-	for _, raw := range in.Routes {
-		var r struct {
-			Name string `json:"name"`
-		}
-		_ = json.Unmarshal(raw, &r)
+	for _, r := range in.routes() {
 		out[strings.ToLower(strings.TrimSpace(r.Name))] = true
 	}
 	return out
 }
 
+// Hosts are every host a route names, lower-cased, wildcards included, in
+// the order first named.
+func (in *Ingress) Hosts() []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, r := range in.routes() {
+		for _, h := range r.Hosts {
+			h = strings.ToLower(strings.TrimSuffix(strings.TrimSpace(h), "."))
+			if h != "" && !seen[h] {
+				seen[h] = true
+				out = append(out, h)
+			}
+		}
+	}
+	return out
+}
+
+// ownSubAdmins are the accounts whose customers' links are published on a
+// subscription route of their own (a reseller's domain), not NX's shared
+// address.
+func (in *Ingress) ownSubAdmins() map[uint]bool {
+	out := map[uint]bool{}
+	for _, r := range in.routes() {
+		if r.Service == "sub" && r.Canonical && r.AdminID != 0 && len(r.Hosts) > 0 {
+			out[r.AdminID] = true
+		}
+	}
+	return out
+}
+
+// wildcardFor is the wildcard host of a subscription or panel route that
+// host is one label under, "" when none is: NX then mints a name like it for
+// every subscriber. A wildcard on any other route (a site, a redirect) is
+// not where links are published, and a host some route lists by name is not
+// a minted one.
+func (in *Ingress) wildcardFor(host string) string {
+	host = strings.ToLower(host)
+	// A name a route lists as itself is published as itself, whatever
+	// wildcard is beside it; only a name no route spells out was minted.
+	for _, h := range in.Hosts() {
+		if h == host {
+			return ""
+		}
+	}
+	for _, r := range in.routes() {
+		if r.Service != "sub" && r.Service != "panel" {
+			continue
+		}
+		for _, h := range r.Hosts {
+			h = strings.ToLower(strings.TrimSpace(h))
+			suffix, ok := strings.CutPrefix(h, "*.")
+			if !ok {
+				continue
+			}
+			if label, ok := strings.CutSuffix(host, "."+suffix); ok && label != "" && !strings.Contains(label, ".") {
+				return h
+			}
+		}
+	}
+	return ""
+}
+
 // WithRoutes is the document with routes put in front of the existing ones.
-// Routes are tried in order, so the added ones are looked at first; each
-// takes only its own host and path, so nothing that reached a route before
-// reaches another one now.
-func (in *Ingress) WithRoutes(routes []any) (map[string]any, error) {
+// Routes are tried in order, so the added ones are looked at first; it is up
+// to each added route to take only what no existing route serves.
+func (in *Ingress) WithRoutes(routes []any) map[string]any {
 	doc := map[string]any{}
 	for k, v := range in.Doc {
 		switch k {
@@ -92,7 +220,7 @@ func (in *Ingress) WithRoutes(routes []any) (map[string]any, error) {
 		all = append(all, r)
 	}
 	doc["routes"] = all
-	return doc, nil
+	return doc
 }
 
 // Ingress reads NX's addresses.
@@ -100,7 +228,7 @@ func (c *Client) Ingress(ctx context.Context) (*Ingress, error) {
 	var raw map[string]json.RawMessage
 	if err := c.http.Get(ctx, "/api/ingress", &raw); err != nil {
 		if httpx.Status(err) == http.StatusForbidden {
-			return nil, fmt.Errorf("only NX's main admin can read and change the panel's addresses; connect as the main admin")
+			return nil, fmt.Errorf("this connection may not read NX's addresses: that needs the main admin, and the ingress:read and ingress:write scopes on an API token (%w)", err)
 		}
 		return nil, err
 	}
@@ -122,6 +250,10 @@ type RouteTest struct {
 	Listener string `json:"listener"`
 	Host     string `json:"host"`
 	Path     string `json:"path"`
+	// TLS and SNI describe the handshake, so a listener that refuses names
+	// it holds no certificate for says so.
+	TLS bool   `json:"tls,omitempty"`
+	SNI string `json:"sni,omitempty"`
 	// Ingress, when set, is a draft to try instead of the saved table.
 	Ingress any `json:"ingress,omitempty"`
 }
@@ -134,6 +266,9 @@ type RouteAnswer struct {
 	Service  string `json:"service"`
 	Path     string `json:"path"`
 	Redirect string `json:"redirect"`
+	// Closed, on a refusal no route took part in, is why: "listener-off" or
+	// "unknown-sni".
+	Closed string `json:"closed"`
 }
 
 // TestRoute asks the panel what a request would get, by the same walk that
@@ -144,22 +279,46 @@ func (c *Client) TestRoute(ctx context.Context, t RouteTest) (RouteAnswer, error
 	return out, err
 }
 
+// IngressWarning is one thing the panel says a saved table serves, but
+// probably not as meant: Code "certificate" names a host (Detail) of route
+// Other that no certificate of listener Name carries; "shadowed" a route
+// Name that the earlier route Other answers for.
+type IngressWarning struct {
+	Kind   string `json:"kind"`
+	Name   string `json:"name"`
+	Code   string `json:"code"`
+	Other  string `json:"other"`
+	Detail string `json:"detail"`
+}
+
+// IngressChange is the answer to a saved change.
+type IngressChange struct {
+	// Token confirms the change.
+	Token    string
+	Warnings []IngressWarning
+	// Restart says the running panel cannot apply the change live: it takes
+	// effect at the panel's next start.
+	Restart bool
+}
+
 // ReplaceIngress saves a new table and returns the token that confirms it.
 // The panel applies it at once and puts it back unless ConfirmIngress is
 // called with that token in time.
-func (c *Client) ReplaceIngress(ctx context.Context, doc any) (string, error) {
+func (c *Client) ReplaceIngress(ctx context.Context, doc any) (IngressChange, error) {
 	var out struct {
 		Pending *struct {
 			Token string `json:"token"`
 		} `json:"pending"`
+		Warnings []IngressWarning `json:"warnings"`
+		Restart  bool             `json:"restart"`
 	}
 	if err := c.http.Do(ctx, http.MethodPut, "/api/ingress", doc, &out); err != nil {
-		return "", err
+		return IngressChange{}, err
 	}
 	if out.Pending == nil || out.Pending.Token == "" {
-		return "", fmt.Errorf("NX saved the change but returned no token to confirm it with, so it will put it back by itself")
+		return IngressChange{}, fmt.Errorf("NX saved the change but returned no token to confirm it with, so it will put it back by itself")
 	}
-	return out.Pending.Token, nil
+	return IngressChange{Token: out.Pending.Token, Warnings: out.Warnings, Restart: out.Restart}, nil
 }
 
 // ConfirmIngress confirms a change. The panel answers 409 while the change is
@@ -180,25 +339,56 @@ func (c *Client) ConfirmIngress(ctx context.Context, token string) error {
 	return err
 }
 
-// SubscriptionBase is where NX publishes subscription links, read off an
-// account's own link: "https://sub.nx.com/sub" for
-// "https://sub.nx.com/sub/abc". It is what the panel itself hands customers,
-// so it already accounts for a public address, a subscription domain and a
-// path prefix.
-func (c *Client) SubscriptionBase(ctx context.Context) (string, error) {
-	raw := json.RawMessage{}
-	if err := c.http.Get(ctx, "/api/users?limit=1", &raw); err != nil {
-		return "", err
+// subBasePage is how many accounts are read at a time, and subBasePages
+// how many pages at most, to find one whose link is on NX's shared address.
+const (
+	subBasePage  = 100
+	subBasePages = 20
+)
+
+// SubscriptionBase is where NX publishes the subscription links of accounts
+// on its shared address, read off such an account's own link:
+// "https://sub.nx.com/sub" for "https://sub.nx.com/sub/abc". It is what the
+// panel itself hands customers, so it already accounts for a public address,
+// a subscription domain and a path prefix. Accounts whose owner has a
+// subscription route of their own (a reseller's domain) are passed over, and
+// a subscription domain that mints a name per subscriber is refused: one
+// redirect cannot send each customer to their own name.
+func (c *Client) SubscriptionBase(ctx context.Context, in *Ingress) (string, error) {
+	own := in.ownSubAdmins()
+	for page := 0; page < subBasePages; page++ {
+		raw := json.RawMessage{}
+		path := fmt.Sprintf("/api/users?limit=%d&offset=%d", subBasePage, page*subBasePage)
+		if err := c.http.Get(ctx, path, &raw); err != nil {
+			return "", err
+		}
+		rows, err := decodeList(raw)
+		if err != nil {
+			return "", err
+		}
+		if len(rows) == 0 && page == 0 {
+			return "", fmt.Errorf("NX has no account yet to read its subscription address from")
+		}
+		for _, row := range rows {
+			if id, _ := row["adminId"].(float64); own[uint(id)] {
+				continue
+			}
+			link, _ := row["subUrl"].(string)
+			base, err := subBaseOf(link)
+			if err != nil {
+				return "", err
+			}
+			u, _ := url.Parse(base)
+			if w := in.wildcardFor(u.Hostname()); w != "" {
+				return "", fmt.Errorf("NX publishes subscriptions on %s, a name of its own for every subscriber, and one redirect would send every customer to the same subscriber's name: give customers their NX links instead", w)
+			}
+			return base, nil
+		}
+		if len(rows) < subBasePage {
+			break
+		}
 	}
-	rows, err := decodeList(raw)
-	if err != nil {
-		return "", err
-	}
-	if len(rows) == 0 {
-		return "", fmt.Errorf("NX has no account yet to read its subscription address from")
-	}
-	link, _ := rows[0]["subUrl"].(string)
-	return subBaseOf(link)
+	return "", fmt.Errorf("every account NX listed belongs to an admin with a subscription address of their own, so NX's shared subscription address could not be read")
 }
 
 func subBaseOf(link string) (string, error) {
@@ -206,14 +396,31 @@ func subBaseOf(link string) (string, error) {
 	if err != nil || u.Host == "" {
 		return "", fmt.Errorf("NX returned no usable subscription link (%q)", link)
 	}
-	i := strings.LastIndex(u.Path, "/sub/")
+	// On the escaped path: a token is escaped, so a "/sub/" in it is not
+	// taken for the panel's own.
+	escaped := u.EscapedPath()
+	i := strings.LastIndex(escaped, "/sub/")
 	if i < 0 {
 		return "", fmt.Errorf("NX's subscription link %q is not under /sub/", link)
 	}
-	u.Path, u.RawPath, u.RawQuery, u.Fragment = u.Path[:i+len("/sub")], "", "", ""
-	switch h := strings.ToLower(u.Hostname()); {
-	case h == "localhost", strings.HasPrefix(h, "127."), h == "::1":
+	path, err := url.PathUnescape(escaped[:i+len("/sub")])
+	if err != nil {
+		return "", fmt.Errorf("NX returned no usable subscription link (%q)", link)
+	}
+	u.Path, u.RawPath, u.RawQuery, u.Fragment = path, "", "", ""
+	if !reachable(u.Hostname()) {
 		return "", fmt.Errorf("NX builds its subscription links on %s, which is the address this tool reached it by, not one customers can open: set the panel's public or subscription address in NX first", u.Host)
 	}
 	return u.String(), nil
+}
+
+// reachable reports whether a host could be one customers open: not
+// loopback, a private or link-local address, or a single-label name such as
+// a Docker service's.
+func reachable(host string) bool {
+	h := strings.ToLower(strings.TrimSuffix(host, "."))
+	if ip := net.ParseIP(h); ip != nil {
+		return !ip.IsLoopback() && !ip.IsPrivate() && !ip.IsLinkLocalUnicast() && !ip.IsUnspecified()
+	}
+	return h != "localhost" && !strings.HasSuffix(h, ".localhost") && strings.Contains(h, ".")
 }

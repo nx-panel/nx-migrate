@@ -6,6 +6,7 @@ package targettest
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -21,6 +22,21 @@ type Ingress struct {
 	Puts, Confirms int
 	// PendingOther makes GET report a change of somebody else's waiting.
 	PendingOther bool
+	// Warnings and Restart are what the answer to a change carries.
+	Warnings []map[string]any
+	Restart  bool
+	// NoCert are the names a TLS handshake is refused for, as on a listener
+	// that rejects names it holds no certificate for.
+	NoCert map[string]bool
+	// PutStatus, when set, is what a change is answered with instead
+	// (428 for a stale second factor, 400 for a refused table).
+	PutStatus int
+	// Busy is how many confirmations are answered 409 ("still being
+	// applied") before one is taken.
+	Busy int
+	// OnPut runs after a change is saved, before it is answered; OnTest
+	// before a route test is answered; OnConfirm before a confirmation is.
+	OnPut, OnTest, OnConfirm func()
 }
 
 // New is a panel with one listener on 443 and one panel route that serves
@@ -51,11 +67,30 @@ func (f *Ingress) Register(mux *http.ServeMux) {
 			http.Error(w, `{"error":"invalid body"}`, http.StatusBadRequest)
 			return
 		}
+		if f.PutStatus != 0 {
+			http.Error(w, `{"error":"refused"}`, f.PutStatus)
+			return
+		}
+		// The panel's validation of a route's hosts, as far as it matters
+		// here: a host name or a bare IP, never a URL or a host:port.
+		for _, r := range doc.Routes {
+			for _, h := range append(strs(r["hosts"]), strs(r["excludeHosts"])...) {
+				if strings.ContainsAny(h, "/ ") || (strings.Contains(h, ":") && net.ParseIP(h) == nil) {
+					http.Error(w, `{"error":"`+h+` is not a host name"}`, http.StatusBadRequest)
+					return
+				}
+			}
+		}
 		f.mu.Lock()
 		f.Puts++
 		f.pending = doc.Routes
+		onPut := f.OnPut
 		f.mu.Unlock()
-		write(w, map[string]any{"pending": map[string]any{"revision": 1, "confirmBy": 1, "token": "tok-1"}})
+		if onPut != nil {
+			onPut()
+		}
+		write(w, map[string]any{"pending": map[string]any{"revision": 1, "confirmBy": 1, "token": "tok-1"},
+			"warnings": f.Warnings, "restart": f.Restart})
 	})
 	mux.HandleFunc("POST /api/ingress/confirm", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
@@ -63,7 +98,18 @@ func (f *Ingress) Register(mux *http.ServeMux) {
 		}
 		_ = json.NewDecoder(r.Body).Decode(&body)
 		f.mu.Lock()
+		onConfirm := f.OnConfirm
+		f.mu.Unlock()
+		if onConfirm != nil {
+			onConfirm()
+		}
+		f.mu.Lock()
 		defer f.mu.Unlock()
+		if f.Busy > 0 && f.pending != nil {
+			f.Busy--
+			http.Error(w, `{"error":"the change is still being applied; ask again"}`, http.StatusConflict)
+			return
+		}
 		if body.Token != "tok-1" || f.pending == nil {
 			http.Error(w, `{"error":"no change is waiting"}`, http.StatusNotFound)
 			return
@@ -77,6 +123,8 @@ func (f *Ingress) Register(mux *http.ServeMux) {
 			Listener string `json:"listener"`
 			Host     string `json:"host"`
 			Path     string `json:"path"`
+			TLS      bool   `json:"tls"`
+			SNI      string `json:"sni"`
 			Ingress  *struct {
 				Routes []map[string]any `json:"routes"`
 			} `json:"ingress"`
@@ -86,13 +134,30 @@ func (f *Ingress) Register(mux *http.ServeMux) {
 			return
 		}
 		f.mu.Lock()
-		routes := f.Routes
+		onTest := f.OnTest
 		f.mu.Unlock()
+		if onTest != nil {
+			onTest()
+		}
+		f.mu.Lock()
+		routes, refused := f.Routes, req.TLS && f.NoCert[req.SNI]
+		f.mu.Unlock()
+		if refused {
+			write(w, map[string]any{"outcome": "refused", "closed": "unknown-sni"})
+			return
+		}
 		if req.Ingress != nil {
 			routes = req.Ingress.Routes
 		}
 		write(w, resolve(routes, req.Listener, req.Host, req.Path))
 	})
+}
+
+// Edit changes the saved table, as another admin would.
+func (f *Ingress) Edit(change func(routes []map[string]any) []map[string]any) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.Routes = change(f.Routes)
 }
 
 // Route finds a route of the saved table by name.
@@ -108,15 +173,20 @@ func (f *Ingress) Route(name string) map[string]any {
 }
 
 func resolve(routes []map[string]any, listener, host, path string) map[string]any {
+	// As the panel reads a Host header: no port, no trailing dot.
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.TrimSuffix(strings.Trim(host, "[]"), ".")
 	for _, r := range routes {
 		if !contains(strs(r["listeners"]), listener) {
 			continue
 		}
 		hosts := strs(r["hosts"])
-		if len(hosts) > 0 && !contains(hosts, host) {
+		if len(hosts) > 0 && !matches(hosts, host) {
 			continue
 		}
-		if contains(strs(r["excludeHosts"]), host) {
+		if matches(strs(r["excludeHosts"]), host) {
 			continue
 		}
 		prefix, _ := r["prefix"].(string)
@@ -154,6 +224,24 @@ func strs(v any) []string {
 		return s
 	}
 	return out
+}
+
+// matches reports whether host is one of the entries; "*.x" is exactly one
+// label under x, as the panel reads it.
+func matches(entries []string, host string) bool {
+	for _, e := range entries {
+		if suffix, ok := strings.CutPrefix(strings.ToLower(e), "*."); ok {
+			label, under := strings.CutSuffix(strings.ToLower(host), "."+suffix)
+			if under && label != "" && !strings.Contains(label, ".") {
+				return true
+			}
+			continue
+		}
+		if strings.EqualFold(e, host) {
+			return true
+		}
+	}
+	return false
 }
 
 func contains(list []string, s string) bool {

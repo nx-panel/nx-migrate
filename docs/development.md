@@ -43,7 +43,10 @@ internal/httpx/            JSON HTTP that quotes the server in its errors
 internal/source/<panel>/   one reader per source panel
 internal/source/xraysql/   what the two x-ui lines share
 internal/source/dbfetch/   the backup-download channel for s-ui, 3x-ui and x-ui
-internal/target/           the NX client: login, preflight, create
+internal/target/           the NX client: login, preflight, create, and the
+                           ingress (read, route test, replace, confirm)
+internal/sublink/          the old subscription addresses and the redirect
+                           routes they become in NX's ingress
 internal/apply/            ordering, id late-binding, node pause/resume
 internal/web/              the wizard: server, guards, upload, SSE, assets/
 ```

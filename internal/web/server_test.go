@@ -125,7 +125,7 @@ func fakeNX(t *testing.T) *httptest.Server {
 	// addresses read NX's own link off one.
 	mux.HandleFunc("GET /api/users", func(w http.ResponseWriter, r *http.Request) {
 		rows := []any{}
-		if r.URL.Query().Get("limit") == "1" {
+		if r.URL.Query().Get("fields") == "" {
 			rows = append(rows, map[string]any{"name": "ali", "subUrl": "https://sub.nx.test/sub/tok"})
 		}
 		ok(rows)(w, r)

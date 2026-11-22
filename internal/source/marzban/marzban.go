@@ -516,16 +516,21 @@ func readUsers(ctx context.Context, c *httpx.Client, b *bundle.Bundle, admins ma
 	}
 	names := normalize.NewNamer()
 	var olds []sublink.Old
+	unread := 0
 	for i, u := range users {
 		b.Add(userItem(b, u, names, admins, templates, reach[i], allIn, allEp))
 		if o, ok := sublink.FromLink(u.SubscriptionURL, "subscription"); ok {
 			olds = append(olds, o)
+		} else if strings.TrimSpace(u.SubscriptionURL) != "" {
+			unread++
 		}
+	}
+	if unread > 0 {
+		b.Note("%d account(s) have a subscription link whose address is not one NX can route (not http or https, or no usable host name), so no redirect is offered for it", unread)
 	}
 	// Every account's link names the same address unless the panel's prefix
 	// was changed while it had customers; each distinct one is an item.
-	sublink.Add(b, olds,
-		"customers keep this link: NX answers it with a redirect to its own subscription address and the same token. Point this address (its DNS name and port) at NX before the old panel is switched off",
+	sublink.Add(b, olds, sublink.KeepNote,
 		"a link that names its client type keeps it, and NX understands singbox, sing-box, clash, xray, plain and v2ray there; any other name (clash-meta, v2ray-json, outline, …) gets NX's link list")
 }
 
