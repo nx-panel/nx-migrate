@@ -33,7 +33,7 @@ import (
 // version is stamped by the release build:
 //
 //	go build -ldflags "-X main.version=1.0.0"
-var version = "0.0.1"
+var version = "0.1.2"
 
 func main() {
 	var (
