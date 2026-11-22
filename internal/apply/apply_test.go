@@ -25,6 +25,7 @@ type fakePanel struct {
 	nodeOps  []string
 	conflict map[string]bool // path → answer 409
 	full     map[string]bool // path → answer 402 (licence)
+	unique   map[string]bool // path → answer 400 with the driver's unique-index words
 	ingress  *targettest.Ingress
 }
 
@@ -34,7 +35,7 @@ type createdRow struct {
 }
 
 func newPanel() *fakePanel {
-	return &fakePanel{conflict: map[string]bool{}, full: map[string]bool{}, ingress: targettest.New()}
+	return &fakePanel{conflict: map[string]bool{}, full: map[string]bool{}, unique: map[string]bool{}, ingress: targettest.New()}
 }
 
 func (f *fakePanel) start(t *testing.T) *target.Client {
@@ -102,6 +103,11 @@ func (f *fakePanel) start(t *testing.T) *target.Client {
 			if f.conflict[path] {
 				w.WriteHeader(http.StatusConflict)
 				writeJSON(w, map[string]string{"error": "already exists"})
+				return
+			}
+			if f.unique[path] {
+				w.WriteHeader(http.StatusBadRequest)
+				writeJSON(w, map[string]string{"error": "constraint failed: UNIQUE constraint failed: users.name (2067)"})
 				return
 			}
 			f.nextID++
@@ -327,6 +333,20 @@ func TestExistingNameIsReportedNotFailed(t *testing.T) {
 	}
 	if res.Failed != 0 {
 		t.Errorf("failed = %d, want 0 — a duplicate name is not a failure", res.Failed)
+	}
+}
+
+// NX 0.1.x answers a second account of the same name with 400 and SQLite's
+// words, not 409; that is the same "already there", not a failure.
+func TestUniqueViolationIsReportedAsExisting(t *testing.T) {
+	panel := newPanel()
+	panel.unique["/api/users"] = true
+	c := panel.start(t)
+	items, _ := Select(testBundle(), map[string]bool{"client:1": true})
+
+	res := Run(context.Background(), c, items, Options{}, nil)
+	if res.Existing != 1 || res.Failed != 0 {
+		t.Errorf("existing = %d, failed = %d; want 1, 0: %+v", res.Existing, res.Failed, res.Events)
 	}
 }
 

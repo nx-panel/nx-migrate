@@ -195,6 +195,9 @@ func Run(ctx context.Context, c *target.Client, items []bundle.Item, opt Options
 		case target.IsConflict(err):
 			ev.Status = StatusExists
 			ev.Message = "the panel already has something with this name, so it was left alone"
+			if target.IsDuplicate(err) {
+				ev.Message = "the panel already holds a row this would duplicate, so it was left alone (" + err.Error() + ")"
+			}
 			res.Existing++
 		case target.IsConfirmRequired(err):
 			ev.Status = StatusFailed

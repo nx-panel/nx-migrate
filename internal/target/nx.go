@@ -344,7 +344,17 @@ func IsConflict(err error) bool {
 	if httpx.Status(err) == http.StatusConflict {
 		return true
 	}
-	return err != nil && strings.Contains(strings.ToLower(err.Error()), "already exists")
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "already exists") || IsDuplicate(err)
+}
+
+// IsDuplicate reports whether the panel refused a create because its
+// database already holds the unique value: NX 0.1.x answers a second account
+// or admin of the same name with 400 and the driver's words, SQLite's
+// "UNIQUE constraint failed: users.name" or PostgreSQL's "duplicate key value
+// violates unique constraint", rather than 409.
+func IsDuplicate(err error) bool {
+	return err != nil && httpx.Status(err) == http.StatusBadRequest &&
+		strings.Contains(strings.ToLower(err.Error()), "unique constraint")
 }
 
 // IsLicenceRefusal reports whether the panel refused because the licence is
