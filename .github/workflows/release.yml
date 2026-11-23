@@ -19,7 +19,7 @@ permissions:
 jobs:
   # A release that does not pass its own tests is not a release.
   verify:
-    runs-on: ubicloud-standard-2
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -34,7 +34,7 @@ jobs:
   # cross-compiles on the same Linux runner.
   build:
     needs: verify
-    runs-on: ubicloud-standard-2
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: true
       matrix:
@@ -84,7 +84,7 @@ jobs:
   # Gathers the five archives, writes the checksums, and publishes the release.
   release:
     needs: build
-    runs-on: ubicloud-standard-2
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v8
         with:
