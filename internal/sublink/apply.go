@@ -161,8 +161,10 @@ func apply(ctx context.Context, c *target.Client, items []bundle.Item) []Outcome
 		}
 		name := o.RouteName()
 		if names[name] {
-			out = append(out, Outcome{Item: it, Status: Exists,
-				Message: fmt.Sprintf("NX already has the route %q for this address, so it was left alone", name)})
+			out = append(out, Outcome{
+				Item: it, Status: Exists,
+				Message: fmt.Sprintf("NX already has the route %q for this address, so it was left alone", name),
+			})
 			continue
 		}
 		listeners, note := listenersFor(in.Listeners, o)
@@ -191,8 +193,10 @@ func apply(ctx context.Context, c *target.Client, items []bundle.Item) []Outcome
 			continue
 		}
 		names[name] = true
-		plan = append(plan, planned{item: it, old: o, name: name, route: route(o, name, listeners, base, exclude),
-			listeners: listeners, note: note})
+		plan = append(plan, planned{
+			item: it, old: o, name: name, route: route(o, name, listeners, base, exclude),
+			listeners: listeners, note: note,
+		})
 	}
 	if len(plan) == 0 {
 		return out
@@ -254,7 +258,7 @@ func apply(ctx context.Context, c *target.Client, items []bundle.Item) []Outcome
 			// Not confirmed, so the panel puts the table back by itself.
 			err = fmt.Errorf("NX says the new routes would take %s, so the change was not confirmed and the panel puts it back by itself within two minutes", taken)
 		} else if err = confirm(ctx, c, change.Token); err != nil {
-			err = fmt.Errorf("NX saved the routes but the change could not be confirmed (%v), so the panel puts it back by itself within two minutes", err)
+			err = fmt.Errorf("NX saved the routes but the change could not be confirmed (%w), so the panel puts it back by itself within two minutes", err)
 		}
 	}
 	if err != nil {
@@ -342,8 +346,10 @@ func keepOffOwnAddress(ctx context.Context, c *target.Client, in *target.Ingress
 		if hit < 0 {
 			return keep, draft, nil
 		}
-		*out = append(*out, Outcome{Item: keep[hit].item, Status: Failed,
-			Message: "the route would also take NX's own subscription address and send it to itself, so it was not added"})
+		*out = append(*out, Outcome{
+			Item: keep[hit].item, Status: Failed,
+			Message: "the route would also take NX's own subscription address and send it to itself, so it was not added",
+		})
 		keep = append(keep[:hit:hit], keep[hit+1:]...)
 	}
 	return keep, nil, nil

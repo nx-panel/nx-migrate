@@ -156,10 +156,14 @@ func TestMarzbanExclusionsBecomeFilters(t *testing.T) {
 		}
 		px := map[string]any{"vless": map[string]any{"id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"}}
 		writeJSON(w, map[string]any{"total": 2, "users": []map[string]any{
-			{"username": "full", "status": "active", "proxies": px, "excluded_inbounds": map[string]any{"vless": []string{}},
-				"inbounds": map[string]any{"vless": []string{"A", "B"}}},
-			{"username": "noB", "status": "active", "proxies": px, "excluded_inbounds": map[string]any{"vless": []string{"B"}},
-				"inbounds": map[string]any{"vless": []string{"A", "B"}}},
+			{
+				"username": "full", "status": "active", "proxies": px, "excluded_inbounds": map[string]any{"vless": []string{}},
+				"inbounds": map[string]any{"vless": []string{"A", "B"}},
+			},
+			{
+				"username": "noB", "status": "active", "proxies": px, "excluded_inbounds": map[string]any{"vless": []string{"B"}},
+				"inbounds": map[string]any{"vless": []string{"A", "B"}},
+			},
 		}})
 	})
 	srv := httptest.NewServer(mux)

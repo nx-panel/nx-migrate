@@ -78,8 +78,10 @@ func (f *fakePanel) start(t *testing.T) *target.Client {
 		writeJSON(w, map[string]any{"ok": true})
 	})
 	// Every list endpoint the preflight touches.
-	for _, p := range []string{"/api/users", "/api/inbounds", "/api/outbounds",
-		"/api/endpoints", "/api/rule-sets", "/api/templates", "/api/admins"} {
+	for _, p := range []string{
+		"/api/users", "/api/inbounds", "/api/outbounds",
+		"/api/endpoints", "/api/rule-sets", "/api/templates", "/api/admins",
+	} {
 		path := p
 		mux.HandleFunc("GET "+p, func(w http.ResponseWriter, r *http.Request) {
 			// NX's own subscription link is read off one account, once there

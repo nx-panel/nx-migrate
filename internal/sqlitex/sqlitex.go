@@ -11,6 +11,7 @@
 package sqlitex
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -48,7 +49,7 @@ func Open(path string) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := db.Ping(); err != nil {
+	if err := db.PingContext(context.Background()); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("%s is not a readable SQLite database: %w", path, err)
 	}
@@ -61,26 +62,31 @@ func (d *DB) Close() error { return d.sql.Close() }
 // HasTable reports whether a table exists.
 func (d *DB) HasTable(name string) bool {
 	var n int
-	err := d.sql.QueryRow(
+	err := d.sql.QueryRowContext(context.Background(),
 		`SELECT count(*) FROM sqlite_master WHERE type IN ('table','view') AND name = ?`, name).Scan(&n)
 	return err == nil && n > 0
 }
 
-// Columns returns the column set of a table, cached.
+// Columns returns the column set of a table, cached. A read that fails is
+// not cached, so the next call asks again instead of keeping a short set.
 func (d *DB) Columns(table string) map[string]bool {
 	if c, ok := d.cols[table]; ok {
 		return c
 	}
 	out := map[string]bool{}
-	rows, err := d.sql.Query(`SELECT name FROM pragma_table_info(?)`, table)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var name string
-			if rows.Scan(&name) == nil {
-				out[name] = true
-			}
+	rows, err := d.sql.QueryContext(context.Background(), `SELECT name FROM pragma_table_info(?)`, table)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		if rows.Scan(&name) == nil {
+			out[name] = true
 		}
+	}
+	if rows.Err() != nil {
+		return out
 	}
 	d.cols[table] = out
 	return out
@@ -116,7 +122,7 @@ func (d *DB) Select(table string, want []string, orderBy string) ([]Row, error) 
 
 // Query runs an arbitrary read and returns generic rows.
 func (d *DB) Query(q string, args ...any) ([]Row, error) {
-	rows, err := d.sql.Query(q, args...)
+	rows, err := d.sql.QueryContext(context.Background(), q, args...)
 	if err != nil {
 		return nil, err
 	}

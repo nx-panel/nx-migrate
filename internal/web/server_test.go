@@ -116,8 +116,10 @@ func fakeNX(t *testing.T) *httptest.Server {
 		{"resource": "user", "used": 0, "max": 5},
 	}}))
 	mux.HandleFunc("GET /api/nodes", ok([]any{}))
-	for _, p := range []string{"/api/inbounds", "/api/outbounds", "/api/endpoints",
-		"/api/rule-sets", "/api/templates", "/api/admins"} {
+	for _, p := range []string{
+		"/api/inbounds", "/api/outbounds", "/api/endpoints",
+		"/api/rule-sets", "/api/templates", "/api/admins",
+	} {
 		mux.HandleFunc("GET "+p, ok([]any{}))
 		mux.HandleFunc("POST "+p, ok(map[string]any{"id": 7}))
 	}

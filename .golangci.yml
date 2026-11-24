@@ -1,0 +1,53 @@
+version: "2"
+
+run:
+  build-tags: []
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - noctx
+    - misspell
+    - rowserrcheck
+    - sqlclosecheck
+    - unconvert
+    - usestdlibvars
+  exclusions:
+    generated: lax
+    presets:
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - bodyclose
+          - noctx
+      # ST1005 (capitalized error strings) conflicts with user-facing API error
+      # copy that handlers write verbatim into JSON responses.
+      - linters:
+          - staticcheck
+        text: "ST1005:"
+      # QF1008 wants embedded-struct selectors elided (req.Template.X -> req.X).
+      # The request wrappers spell the embedded model out on purpose so it stays
+      # obvious which fields are persisted alongside &req.Template.
+      - linters:
+          - staticcheck
+        text: "QF1008:"
+      # ST1018 wants U+200C (the Persian zero-width non-joiner) escaped. The
+      # Persian copy needs it between word parts, and "\u200c" in the middle
+      # of every sentence would make that copy unreadable to whoever edits it.
+      - linters:
+          - staticcheck
+        text: "ST1018:"
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/nx-panel/nx-migrate

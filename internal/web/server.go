@@ -16,6 +16,7 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -97,7 +98,7 @@ func New(cfg Config) (*Server, error) {
 
 // Run serves until the wizard finishes or the context is cancelled.
 func (s *Server) Run(ctx context.Context) error {
-	ln, err := net.Listen("tcp", s.cfg.Listen)
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", s.cfg.Listen)
 	if err != nil {
 		return fmt.Errorf("could not listen on %s: %w", s.cfg.Listen, err)
 	}
@@ -142,7 +143,7 @@ func (s *Server) Run(ctx context.Context) error {
 	} else {
 		err = srv.Serve(ln)
 	}
-	if err == http.ErrServerClosed {
+	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}
 	return err
@@ -315,7 +316,8 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 	if !bytes.HasPrefix(head, sqliteMagic) {
 		os.Remove(path)
 		writeJSON(w, http.StatusBadRequest, map[string]string{
-			"error": fmt.Sprintf("%s is not a SQLite database. These panels keep everything in one .db file — x-ui.db or s-ui.db — so pick that, not an archive or a dump", name)})
+			"error": fmt.Sprintf("%s is not a SQLite database. These panels keep everything in one .db file — x-ui.db or s-ui.db — so pick that, not an archive or a dump", name),
+		})
 		return
 	}
 
@@ -613,8 +615,10 @@ func (s *Server) handleApply(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		s.result, s.running = &res, false
 		s.mu.Unlock()
-		s.broadcast(apply.Event{Phase: "finished", Status: apply.StatusCreated,
-			Done: len(items), Total: len(items)})
+		s.broadcast(apply.Event{
+			Phase: "finished", Status: apply.StatusCreated,
+			Done: len(items), Total: len(items),
+		})
 	}()
 
 	writeJSON(w, http.StatusOK, map[string]any{"started": true, "total": len(items)})
@@ -765,16 +769,19 @@ func isLoopback(host string) bool {
 }
 
 // openBrowser is best effort on all three desktop platforms. A failure is not
-// an error: the URL is printed either way.
+// an error: the URL is printed either way. The opener is not tied to the
+// server's context: some xdg-open setups exec the browser in place, and the
+// wizard finishing must not close the browser it opened.
 func openBrowser(url string) {
+	ctx := context.Background()
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":
-		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+		cmd = exec.CommandContext(ctx, "rundll32", "url.dll,FileProtocolHandler", url)
 	case "darwin":
-		cmd = exec.Command("open", url)
+		cmd = exec.CommandContext(ctx, "open", url)
 	default:
-		cmd = exec.Command("xdg-open", url)
+		cmd = exec.CommandContext(ctx, "xdg-open", url)
 	}
 	_ = cmd.Start()
 }

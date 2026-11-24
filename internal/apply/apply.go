@@ -167,9 +167,11 @@ func Run(ctx context.Context, c *target.Client, items []bundle.Item, opt Options
 		if err := ctx.Err(); err != nil {
 			cancelled = true
 			res.Skipped += total - i
-			send(Event{Phase: "cancelled", Status: StatusSkipped,
+			send(Event{
+				Phase: "cancelled", Status: StatusSkipped,
 				Message: fmt.Sprintf("stopped before %d of %d items", total-i, total),
-				Done:    i, Total: total})
+				Done:    i, Total: total,
+			})
 			break
 		}
 
@@ -208,8 +210,10 @@ func Run(ctx context.Context, c *target.Client, items []bundle.Item, opt Options
 			res.Failed++
 			res.Skipped += total - i - 1
 			send(ev)
-			send(Event{Phase: "stopped", Status: StatusFailed, Done: i + 1, Total: total,
-				Message: "the panel's licence will not accept more of this resource, so the rest of the run was abandoned rather than half-applied"})
+			send(Event{
+				Phase: "stopped", Status: StatusFailed, Done: i + 1, Total: total,
+				Message: "the panel's licence will not accept more of this resource, so the rest of the run was abandoned rather than half-applied",
+			})
 			return finish(res)
 		default:
 			ev.Status, ev.Message = StatusFailed, err.Error()
@@ -222,9 +226,11 @@ func Run(ctx context.Context, c *target.Client, items []bundle.Item, opt Options
 		// A cancelled run has already counted the links among what it skipped.
 	case ctx.Err() != nil:
 		res.Skipped += len(links)
-		send(Event{Phase: "cancelled", Status: StatusSkipped,
+		send(Event{
+			Phase: "cancelled", Status: StatusSkipped,
 			Message: fmt.Sprintf("stopped before %d of %d items", len(links), total),
-			Done:    len(items), Total: total})
+			Done:    len(items), Total: total,
+		})
 	default:
 		applyLinks(ctx, c, links, len(items), total, &res, send)
 	}
@@ -253,8 +259,10 @@ func applyLinks(ctx context.Context, c *target.Client, links []bundle.Item, done
 		send(ev)
 	}
 	if ctx.Err() != nil {
-		send(Event{Phase: "cancelled", Status: StatusSkipped, Message: "stopped while changing NX's addresses",
-			Done: done, Total: total})
+		send(Event{
+			Phase: "cancelled", Status: StatusSkipped, Message: "stopped while changing NX's addresses",
+			Done: done, Total: total,
+		})
 	}
 }
 
@@ -352,8 +360,10 @@ func pauseNodes(ctx context.Context, c *target.Client, opt Options, res *Result,
 		paused = append(paused, n)
 	}
 	if len(paused) > 0 {
-		send(Event{Phase: "nodes paused", Status: StatusCreated,
-			Message: fmt.Sprintf("%d node(s) were switched off so the import does not push to the fleet once per account; they serve nobody until they are switched back on and synced at the end", len(paused))})
+		send(Event{
+			Phase: "nodes paused", Status: StatusCreated,
+			Message: fmt.Sprintf("%d node(s) were switched off so the import does not push to the fleet once per account; they serve nobody until they are switched back on and synced at the end", len(paused)),
+		})
 	}
 	return paused
 }
@@ -378,6 +388,8 @@ func resumeNodes(ctx context.Context, c *target.Client, paused []target.Node, re
 		// No sync of our own: switching a node on makes the panel sync it, so
 		// a second push here would only send the same state again.
 	}
-	send(Event{Phase: "nodes resumed", Status: StatusCreated,
-		Message: fmt.Sprintf("%d node(s) were switched back on; the panel syncs each one as it comes back", len(paused))})
+	send(Event{
+		Phase: "nodes resumed", Status: StatusCreated,
+		Message: fmt.Sprintf("%d node(s) were switched back on; the panel syncs each one as it comes back", len(paused)),
+	})
 }

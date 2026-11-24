@@ -30,39 +30,51 @@ func fixtureV39(t *testing.T) string {
 		{`ALTER TABLE client_traffics ADD COLUMN reset_max INTEGER`, nil},
 		{`ALTER TABLE client_traffics ADD COLUMN reset_count INTEGER`, nil},
 		{`ALTER TABLE inbounds ADD COLUMN exclude_from_sub INTEGER`, nil},
-		{`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing, exclude_from_sub)
+		{
+			`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing, exclude_from_sub)
 			VALUES (10,'capped',1,'',9447,'vless',?,'{"network":"tcp"}','inbound-capped','',1)`,
 			[]any{`{"clients":[
 				{"id":"44444444-4444-4444-4444-444444444444","email":"spent","reset":30,"resetMax":3,"enable":true},
 				{"id":"55555555-5555-5555-5555-555555555555","email":"left","reset":30,"resetMax":3,"enable":true}
-			],"decryption":"none"}`}},
+			],"decryption":"none"}`},
+		},
 		{`INSERT INTO client_traffics (inbound_id, enable, email, up, down, expiry_time, total, reset, reset_day, reset_max, reset_count)
 			VALUES (10,1,'spent',0,0,0,0,30,0,3,3), (10,1,'left',0,0,0,0,30,0,3,1)`, nil},
-		{`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
+		{
+			`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
 			VALUES (11,'masque',1,'',9448,'masque',?,'{"network":"tcp"}','inbound-masque','')`,
-			[]any{`{"clients":[{"email":"mq","pass":"mq-secret","enable":true}],"address":["10.14.0.1/24"]}`}},
-		{`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
+			[]any{`{"clients":[{"email":"mq","pass":"mq-secret","enable":true}],"address":["10.14.0.1/24"]}`},
+		},
+		{
+			`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
 			VALUES (6,'weekly',1,'',9444,'vless',?,'{"network":"tcp"}','inbound-9444','')`,
 			[]any{`{"clients":[
 				{"id":"11111111-1111-1111-1111-111111111111","email":"sunday","resetWeekday":7,"enable":true},
 				{"id":"22222222-2222-2222-2222-222222222222","email":"monday","enable":true}
-			],"decryption":"none"}`}},
+			],"decryption":"none"}`},
+		},
 		{`INSERT INTO client_traffics (inbound_id, enable, email, up, down, expiry_time, total, reset, reset_day, reset_weekday)
 			VALUES (6,1,'monday',0,0,0,0,0,0,1)`, nil},
-		{`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
+		{
+			`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
 			VALUES (7,'hy2',1,'',8444,'hysteria',?,?,'inbound-hy','')`,
 			[]any{
 				`{"version":2,"clients":[{"auth":"hy-secret","email":"hy"}]}`,
 				`{"network":"hysteria","security":"tls","hysteriaSettings":{"version":2,"udpIdleTimeout":60},
 				  "tlsSettings":{"serverName":"hy.example.com","certificates":[{"certificateFile":"/c.crt","keyFile":"/c.key"}]},
 				  "finalmask":{"udp":[{"type":"salamander","settings":{"password":"pw","packetSize":"512-2048"}}]}}`,
-			}},
-		{`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
+			},
+		},
+		{
+			`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
 			VALUES (8,'xdrive',1,'',9445,'vless',?,'{"network":"xdrive","xdriveSettings":{}}','inbound-xd','')`,
-			[]any{`{"clients":[{"id":"33333333-3333-3333-3333-333333333333","email":"xdonly","enable":true}],"decryption":"none"}`}},
-		{`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
+			[]any{`{"clients":[{"id":"33333333-3333-3333-3333-333333333333","email":"xdonly","enable":true}],"decryption":"none"}`},
+		},
+		{
+			`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
 			VALUES (9,'off',0,'',9446,'vless',?,'{"network":"tcp"}','inbound-off','')`,
-			[]any{`{"clients":[],"decryption":"none"}`}},
+			[]any{`{"clients":[],"decryption":"none"}`},
+		},
 	} {
 		if _, err := db.Exec(q.sql, q.args...); err != nil {
 			t.Fatalf("%s: %v", q.sql, err)

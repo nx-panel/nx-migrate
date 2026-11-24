@@ -321,8 +321,10 @@ func (s Settings) Address(uriKey, pathKey, defPath, label, format string) (Old, 
 			return Old{}, fmt.Errorf("the subDomain setting: %w", err)
 		}
 	}
-	return Old{Scheme: scheme, Host: host, Port: port,
-		Path: cleanPath(s.Get(pathKey, defPath)), Label: label, Format: format}, nil
+	return Old{
+		Scheme: scheme, Host: host, Port: port,
+		Path: cleanPath(s.Get(pathKey, defPath)), Label: label, Format: format,
+	}, nil
 }
 
 // Base is the old link before its token, for showing a customer's link:

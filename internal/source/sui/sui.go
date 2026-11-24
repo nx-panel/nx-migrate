@@ -499,10 +499,17 @@ func credentials(raw json.RawMessage) (uuid, password, flow, method string, conf
 	// (s-ui v1.6.3, one per client) a userkey; NX keys them all with the one
 	// password, so a different secret on any of them is a link that changes.
 	for _, pk := range [][2]string{
-		{"trojan", "password"}, {"shadowsocks", "password"}, {"hysteria2", "password"},
-		{"tuic", "password"}, {"anytls", "password"}, {"naive", "password"},
-		{"socks", "password"}, {"mixed", "password"}, {"http", "password"},
-		{"shadowtls", "password"}, {"snell", "userkey"},
+		{"trojan", "password"},
+		{"shadowsocks", "password"},
+		{"hysteria2", "password"},
+		{"tuic", "password"},
+		{"anytls", "password"},
+		{"naive", "password"},
+		{"socks", "password"},
+		{"mixed", "password"},
+		{"http", "password"},
+		{"shadowtls", "password"},
+		{"snell", "userkey"},
 	} {
 		proto := pk[0]
 		cfg, ok := byProto[proto]

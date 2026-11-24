@@ -725,8 +725,10 @@ func firstServer(settings Obj) Obj {
 	// Xray's flat form, which 3x-ui and alireza0's x-ui write for VLESS and
 	// VMess: the server and its one user directly under settings.
 	if str(settings["address"]) != "" {
-		srv := Obj{"address": settings["address"], "port": settings["port"],
-			"password": settings["password"], "method": settings["method"]}
+		srv := Obj{
+			"address": settings["address"], "port": settings["port"],
+			"password": settings["password"], "method": settings["method"],
+		}
 		if id := str(settings["id"]); id != "" {
 			srv["users"] = []any{Obj{"id": id, "flow": settings["flow"]}}
 		}

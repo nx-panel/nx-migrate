@@ -23,19 +23,37 @@ func TestFinalMask(t *testing.T) {
 		obfs       map[string]any // nil: no obfs
 		note       string         // a note that must be there, "" for none
 	}{
-		{"salamander", `{"udp":[{"type":"salamander","settings":{"password":"pw"}}]}`,
-			map[string]any{"type": "salamander", "password": "pw"}, ""},
-		{"gecko range", `{"udp":[{"type":"salamander","settings":{"password":"pw","packetSize":"600-1000"}}]}`,
-			map[string]any{"type": "gecko", "password": "pw", "min_packet_size": 600, "max_packet_size": 1000}, ""},
-		{"gecko one size", `{"udp":[{"type":"salamander","settings":{"password":"pw","packetSize":900}}]}`,
-			map[string]any{"type": "gecko", "password": "pw", "min_packet_size": 900, "max_packet_size": 900}, ""},
-		{"gecko over the cap", `{"udp":[{"type":"salamander","settings":{"password":"pw","packetSize":"1500-2048"}}]}`,
-			map[string]any{"type": "gecko", "password": "pw", "min_packet_size": 1452, "max_packet_size": 1452}, "capped at 1452"},
-		{"unreadable size stays salamander", `{"udp":[{"type":"salamander","settings":{"password":"pw","packetSize":"big"}}]}`,
-			map[string]any{"type": "salamander", "password": "pw"}, ""},
+		{
+			"salamander", `{"udp":[{"type":"salamander","settings":{"password":"pw"}}]}`,
+			map[string]any{"type": "salamander", "password": "pw"},
+			"",
+		},
+		{
+			"gecko range", `{"udp":[{"type":"salamander","settings":{"password":"pw","packetSize":"600-1000"}}]}`,
+			map[string]any{"type": "gecko", "password": "pw", "min_packet_size": 600, "max_packet_size": 1000},
+			"",
+		},
+		{
+			"gecko one size", `{"udp":[{"type":"salamander","settings":{"password":"pw","packetSize":900}}]}`,
+			map[string]any{"type": "gecko", "password": "pw", "min_packet_size": 900, "max_packet_size": 900},
+			"",
+		},
+		{
+			"gecko over the cap", `{"udp":[{"type":"salamander","settings":{"password":"pw","packetSize":"1500-2048"}}]}`,
+			map[string]any{"type": "gecko", "password": "pw", "min_packet_size": 1452, "max_packet_size": 1452},
+			"capped at 1452",
+		},
+		{
+			"unreadable size stays salamander", `{"udp":[{"type":"salamander","settings":{"password":"pw","packetSize":"big"}}]}`,
+			map[string]any{"type": "salamander", "password": "pw"},
+			"",
+		},
 		{"no password", `{"udp":[{"type":"salamander","settings":{}}]}`, nil, "salamander without a password"},
-		{"other masks", `{"udp":[{"type":"salamander","settings":{"password":"pw"}},{"type":"noise"}],"tcp":[{"type":"fragment"}]}`,
-			map[string]any{"type": "salamander", "password": "pw"}, "tcp fragment, udp noise"},
+		{
+			"other masks", `{"udp":[{"type":"salamander","settings":{"password":"pw"}},{"type":"noise"}],"tcp":[{"type":"fragment"}]}`,
+			map[string]any{"type": "salamander", "password": "pw"},
+			"tcp fragment, udp noise",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			in := hysteria(t, tc.mask)
@@ -43,7 +61,7 @@ func TestFinalMask(t *testing.T) {
 				t.Fatalf("type = %q, blocked = %q", in.Type, in.Blocked)
 			}
 			got, _ := in.Config["obfs"].(Obj)
-			if fmt.Sprint(map[string]any(got)) != fmt.Sprint(tc.obfs) && !(got == nil && tc.obfs == nil) {
+			if fmt.Sprint(got) != fmt.Sprint(tc.obfs) && (got != nil || tc.obfs != nil) {
 				t.Errorf("obfs = %v, want %v", got, tc.obfs)
 			}
 			notes := strings.Join(in.Notes, " | ")
@@ -135,11 +153,15 @@ func TestMkcpLegacyMask(t *testing.T) {
 		seed, header string
 		note         string
 	}{
-		{"seed and header", `{"udp":[{"type":"mkcp-legacy","settings":{"header":"wechat"}},{"type":"mkcp-legacy","settings":{"value":"s3cr3t"}}]}`,
-			"s3cr3t", "wechat-video", ""},
+		{
+			"seed and header", `{"udp":[{"type":"mkcp-legacy","settings":{"header":"wechat"}},{"type":"mkcp-legacy","settings":{"value":"s3cr3t"}}]}`,
+			"s3cr3t", "wechat-video", "",
+		},
 		{"original obfuscation", `{"udp":[{"type":"mkcp-legacy","settings":{}}]}`, "", "", ""},
-		{"dns header", `{"udp":[{"type":"mkcp-legacy","settings":{"header":"dns","value":"a.example"}}]}`,
-			"", "", "udp mkcp-legacy dns header"},
+		{
+			"dns header", `{"udp":[{"type":"mkcp-legacy","settings":{"header":"dns","value":"a.example"}}]}`,
+			"", "", "udp mkcp-legacy dns header",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			stream := decode(t, `{"network":"kcp","kcpSettings":{"mtu":1350},"finalmask":`+tc.mask+`}`)

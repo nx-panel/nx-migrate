@@ -194,8 +194,10 @@ func TestApplyAddsRedirectsInFront(t *testing.T) {
 // Marzban's default /sub/ on a host NX already answers needs nothing.
 func TestApplyLeavesWhatAlreadyWorks(t *testing.T) {
 	ing := targettest.New()
-	ing.Routes = append([]map[string]any{{"name": "subscriptions", "listeners": []any{"main"},
-		"hosts": []any{}, "prefix": "", "service": "sub"}}, ing.Routes...)
+	ing.Routes = append([]map[string]any{{
+		"name": "subscriptions", "listeners": []any{"main"},
+		"hosts": []any{}, "prefix": "", "service": "sub",
+	}}, ing.Routes...)
 	c := panel(t, ing, "https://sub.nx.test/sub/ali-token")
 	out := Apply(context.Background(), c, items(Old{Scheme: "https", Host: "sub.old.com", Path: "/sub"}))
 	if out[0].Status != Exists || ing.Puts != 0 {
@@ -209,8 +211,10 @@ func TestApplyLeavesWhatAlreadyWorks(t *testing.T) {
 func TestApplyHostlessExcludesNXsOwnHost(t *testing.T) {
 	ing := targettest.New()
 	ing.Routes[0]["panel"] = map[string]any{"sub": false}
-	ing.Routes = append([]map[string]any{{"name": "subscriptions", "listeners": []any{"main"},
-		"hosts": []any{"sub.nx.test"}, "prefix": "", "service": "sub"}}, ing.Routes...)
+	ing.Routes = append([]map[string]any{{
+		"name": "subscriptions", "listeners": []any{"main"},
+		"hosts": []any{"sub.nx.test"}, "prefix": "", "service": "sub",
+	}}, ing.Routes...)
 	c := panel(t, ing, "https://sub.nx.test/sub/ali-token")
 	out := Apply(context.Background(), c, items(Old{Scheme: "http", Port: 2096, Path: "/sub"}))
 	if out[0].Status != Created {
@@ -350,8 +354,10 @@ func TestApplyRefusedHandshake(t *testing.T) {
 // subscriber is refused.
 func TestApplyTargetIsTheSharedAddress(t *testing.T) {
 	ing := targettest.New()
-	ing.Routes = append([]map[string]any{{"name": "reseller", "listeners": []any{"main"}, "hosts": []any{"shop.example.com"},
-		"prefix": "", "service": "sub", "adminId": 7, "canonical": true}}, ing.Routes...)
+	ing.Routes = append([]map[string]any{{
+		"name": "reseller", "listeners": []any{"main"}, "hosts": []any{"shop.example.com"},
+		"prefix": "", "service": "sub", "adminId": 7, "canonical": true,
+	}}, ing.Routes...)
 	c := panelWith(t, ing, []map[string]any{
 		{"name": "theirs", "adminId": 7, "subUrl": "https://shop.example.com/sub/a"},
 		{"name": "ours", "adminId": 1, "subUrl": "https://sub.nx.test/sub/b"},
@@ -366,8 +372,10 @@ func TestApplyTargetIsTheSharedAddress(t *testing.T) {
 	}
 
 	ing = targettest.New()
-	ing.Routes = append([]map[string]any{{"name": "fronts", "listeners": []any{"main"}, "hosts": []any{"*.sub.nx.test"},
-		"prefix": "", "service": "sub"}}, ing.Routes...)
+	ing.Routes = append([]map[string]any{{
+		"name": "fronts", "listeners": []any{"main"}, "hosts": []any{"*.sub.nx.test"},
+		"prefix": "", "service": "sub",
+	}}, ing.Routes...)
 	c = panel(t, ing, "https://nx-sub-ab12cd.sub.nx.test/sub/b")
 	out = Apply(context.Background(), c, items(o))
 	if out[0].Status != Failed || !strings.Contains(out[0].Message, "*.sub.nx.test") || ing.Puts != 0 {

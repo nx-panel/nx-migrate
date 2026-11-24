@@ -69,7 +69,7 @@ func TestRollingCycleFromTheStartDate(t *testing.T) {
 	next := time.Unix(int64(p["nextReset"].(float64)), 0).UTC()
 	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	if d := next.Sub(start).Hours() / 24; d != float64(int(d)) || int(d)%30 != 0 || !next.After(time.Now()) ||
-		next.Sub(time.Now()) > 30*24*time.Hour {
+		time.Until(next) > 30*24*time.Hour {
 		t.Errorf("next reset %s is not the next 30-day step from %s", next, start)
 	}
 	if c, _ := p["contact"].(map[string]any); c["telegram_id"] != "12345" {

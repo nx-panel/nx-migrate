@@ -32,6 +32,7 @@ set) with the secrets replaced.
    go vet ./...
    go test -race ./...
    gofmt -l .        # must print nothing
+   golangci-lint run ./...   # v2.15.0, as the CI runs it; .golangci.yml
    ```
 
 4. Open a pull request that says what changed and why. CI must pass.

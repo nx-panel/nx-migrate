@@ -22,8 +22,10 @@ func links(t *testing.T, settings map[string]string, p Panel) map[string]sublink
 	return out
 }
 
-var threeXUI = Panel{Name: "3x-ui", SubOnByDefault: true}
-var xui = Panel{Name: "x-ui", JSONAlwaysOn: true}
+var (
+	threeXUI = Panel{Name: "3x-ui", SubOnByDefault: true}
+	xui      = Panel{Name: "x-ui", JSONAlwaysOn: true}
+)
 
 // 3x-ui v3 writes a random path for each of its three subscription paths on
 // a fresh install (web/service/setting.go ResetSettings), on port 2096.

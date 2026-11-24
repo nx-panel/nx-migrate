@@ -23,17 +23,21 @@ func fixtureV37(t *testing.T) string {
 		sql  string
 		args []any
 	}{
-		{`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
+		{
+			`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
 			VALUES (4,'wg2',1,'',51821,'wireguard',?,'{}','inbound-wg2','')`,
-			[]any{`{"secretKey":"WGKEY2","peers":[],"clients":[{"email":"wg-peer","publicKey":"PUB2","allowedIPs":["10.0.0.3/32"],"enable":true}]}`}},
+			[]any{`{"secretKey":"WGKEY2","peers":[],"clients":[{"email":"wg-peer","publicKey":"PUB2","allowedIPs":["10.0.0.3/32"],"enable":true}]}`},
+		},
 		{`INSERT INTO client_traffics (inbound_id, enable, email, up, down, expiry_time, total, reset, reset_day)
 			VALUES (4,1,'wg-peer',1,1,0,0,0,0)`, nil},
-		{`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
+		{
+			`INSERT INTO inbounds (id, remark, enable, listen, port, protocol, settings, stream_settings, tag, sniffing)
 			VALUES (5,'v37',1,'',9443,'vless',?,'{"network":"tcp"}','inbound-9443','')`,
 			[]any{`{"clients":[
 				{"id":"dddddddd-dddd-dddd-dddd-dddddddddddd","email":"renew","reset":30,"resetDay":15,"enable":true},
 				{"id":"eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee","email":"weekly","trafficReset":"weekly","enable":true}
-			],"decryption":"none"}`}},
+			],"decryption":"none"}`},
+		},
 	} {
 		if _, err := db.Exec(q.sql, q.args...); err != nil {
 			t.Fatalf("%s: %v", q.sql, err)

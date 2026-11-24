@@ -49,7 +49,7 @@ func TestSUITokenUsesTheV2API(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/apiv2/getdb" {
 			t.Errorf("a token login should go straight to the v2 API, not %s", r.URL.Path)
-			w.WriteHeader(404)
+			w.WriteHeader(http.StatusNotFound)
 			return
 		}
 		gotToken = r.Header.Get("Token")
@@ -150,7 +150,7 @@ func TestClassicXUIKeepsTheSecretBasePath(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /s3cr3t/login", func(w http.ResponseWriter, r *http.Request) {
 		if r.FormValue("username") != "root" {
-			w.WriteHeader(400)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		send(w, map[string]any{"success": true})

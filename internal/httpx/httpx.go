@@ -12,6 +12,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -219,25 +220,10 @@ func (e *StatusError) Error() string {
 // Status returns the HTTP status of err, or 0 if it is not a StatusError.
 func Status(err error) int {
 	var se *StatusError
-	if ok := asStatus(err, &se); ok {
+	if errors.As(err, &se) {
 		return se.Status
 	}
 	return 0
-}
-
-func asStatus(err error, target **StatusError) bool {
-	for err != nil {
-		if se, ok := err.(*StatusError); ok {
-			*target = se
-			return true
-		}
-		u, ok := err.(interface{ Unwrap() error })
-		if !ok {
-			return false
-		}
-		err = u.Unwrap()
-	}
-	return false
 }
 
 // newJar returns a cookie jar that keeps a session across requests.

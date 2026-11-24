@@ -89,8 +89,10 @@ func (f *Ingress) Register(mux *http.ServeMux) {
 		if onPut != nil {
 			onPut()
 		}
-		write(w, map[string]any{"pending": map[string]any{"revision": 1, "confirmBy": 1, "token": "tok-1"},
-			"warnings": f.Warnings, "restart": f.Restart})
+		write(w, map[string]any{
+			"pending":  map[string]any{"revision": 1, "confirmBy": 1, "token": "tok-1"},
+			"warnings": f.Warnings, "restart": f.Restart,
+		})
 	})
 	mux.HandleFunc("POST /api/ingress/confirm", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
