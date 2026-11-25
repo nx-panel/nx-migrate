@@ -41,10 +41,9 @@ repositories on 2026-09-14, not remembered.
 
 ## 0. What migration actually means here
 
-`nx-panel/docs/product.md` records it plainly: **"The biggest remaining
-migration blocker is Marzban / 3X-UI import. Export shipped; import was
-deliberately dropped and is still the thing that keeps an existing operator on
-their current panel."**
+Put plainly: **the biggest remaining migration blocker is Marzban / 3X-UI
+import.** NX exports, but importing was deliberately left out of the panel, and
+it is still the thing that keeps an existing operator on their current panel.
 
 So the goal is not a generic ETL. It is one sentence:
 
@@ -515,10 +514,10 @@ Layout (new folder, Go 1.26, CGO-free, module `github.com/nx-panel/nx-migrate`):
 ```
 cmd/nx-migrate/     CLI and `ui`
 internal/webui/         the wizard server + go:embed of frontend/dist
-frontend/               Vue 3 + PrimeVue, same stack as nx-panel/frontend
+frontend/               Vue 3 + PrimeVue, same stack as the panel's
 internal/bundle/        the intermediate format + validation
 internal/source/        marzban/ threexui/ sui/ hiddify/ marzneshin/ remnawave/ csv/
-internal/target/        NX API client, generated from nx-panel/internal/api/openapi.yaml
+internal/target/        NX API client, generated from the panel's OpenAPI document
 internal/mapping/       mapping.yaml, policies, collision rules
 internal/report/        human report + machine JSON
 testdata/               fixture databases, per source per version
@@ -530,7 +529,7 @@ actually matter commercially:
 
 1. **s-ui** (SQLite) — near-1:1, proves the whole pipeline end to end cheaply.
 2. **3x-ui** (SQLite) — the largest install base by far.
-3. **Marzban** (API + DB) — the migration blocker named in `product.md`.
+3. **Marzban** (API + DB) — the migration blocker named in §0.
 4. Hiddify → PasarGuard → Remnawave → Marzneshin (dormant, last).
 5. CSV escape hatch, any time.
 
@@ -559,7 +558,7 @@ both.
 | **O1. CLI only** | one static binary; runs where the data is; scriptable; no port, no auth, no CSRF, no frontend build; the whole tool is testable | reviewing 4,000 rows and hand-editing `mapping.yaml` in `vi` is genuinely unpleasant for the audience we are courting |
 | **O2. CLI + local web UI** (`nx-migrate ui`, bound to 127.0.0.1) | the wizard the operator wants: connect → preview → map with dropdowns → apply with a progress bar | a second product surface — frontend build, embed, auth, updates; on a headless VPS it still needs an SSH tunnel; and bound to `0.0.0.0` by a hurried operator it is an **unauthenticated endpoint holding the admin credentials of two panels and every subscription token** |
 | **O3. CLI + a self-contained HTML report** (no server) | `plan` writes `report.html`: the full sortable table, every conflict, the counts, the generated `mapping.yaml` ready to copy. One Go template, zero attack surface, opens with a double-click after `scp` | review is read-only; mapping is still edited as YAML |
-| **O4. A page in nx-panel** | nothing to install | excluded by ruling 2, and by `product.md` decision 5, which dropped Marzban import from the users page |
+| **O4. A page in nx-panel** | nothing to install | excluded by ruling 2, and by the panel's own decision to drop Marzban import from the users page |
 
 ### Ruling: **O2 — CLI plus a local web UI, from the first release**
 
@@ -607,11 +606,10 @@ that the CLI also exposes:
 5. **Apply** — a progress bar over server-sent events (the panel already
    streams logs this way), then `result.csv` and a persisted `report.html`.
 
-**Stack:** Vue 3 + PrimeVue embedded with `go:embed`, matching
-`nx-panel/frontend`, so components, styling and the developer flow are the
-ones this codebase already has. The target-panel client is generated from
-`nx-panel/internal/api/openapi.yaml`, same as the panel's own
-`schema.d.ts`.
+**Stack:** Vue 3 + PrimeVue embedded with `go:embed`, matching the panel's
+frontend, so components, styling and the developer flow are the ones NX
+already has. The target-panel client is generated from the panel's OpenAPI
+document, as the panel's own frontend types are.
 
 **The cost is real and should be planned for, not discovered:** the UI is
 roughly the effort of two source readers. The build order in §6 therefore holds
@@ -739,7 +737,7 @@ What changed, so it is not re-derived:
   — and an account on all of them gets none. The rule is `tag in [...]`, by NX
   tag; past the panel's 64 values per rule the account keeps every inbound and
   the row says so. Marzban and PasarGuard are not done yet.
-- **Client-only options the panel refuses on save** (decision 29) are stripped
+- **Client-only options the panel refuses on save** are stripped
   in full now: a rule action's `network_strategy` / `fallback_network_type`,
   conditions inside an inline `rule_set`, and the dial options
   `network_strategy` / `network_type` / `fallback_network_type` on an s-ui

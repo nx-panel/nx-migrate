@@ -539,8 +539,8 @@ func Clients(b *bundle.Bundle, db *sqlitex.DB, settings map[string]string, accou
 
 		// The two things this panel keeps about the person. The Telegram id
 		// goes on the customer's card; the note is a note, and NX already
-		// has one field for that (docs/product.md decision 12) rather than a
-		// fourth free-text column for every importer to choose between.
+		// has one field for that rather than a fourth free-text column for
+		// every importer to choose between.
 		convert.SetContact(&c, convert.ContactTelegramID, a.TelegramID)
 		if a.Comment != "" {
 			c.Desc = a.Comment
